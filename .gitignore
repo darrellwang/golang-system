@@ -1,0 +1,26 @@
+# Build artifacts
+bin/
+server
+dist/
+*.tmp
+
+# Coverage
+coverage.out
+*.cover
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Go workspace
+go.work.sum.bak
+
+# CodeBuddy
+.codebuddy/
+
+# Reference images
+ref/

@@ -1,0 +1,110 @@
+global:
+  environment: dev
+  imageRegistry: ghcr.io
+
+golangApp:
+  image:
+    repository: golang-app
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 2
+  service:
+    port: 80
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+  config:
+    appPort: 8080
+    logLevel: info
+    dbHost: postgres-app
+    dbPort: 5432
+    dbName: golang-app
+    dbUser: app
+    dbSslmode: disable
+    natsUrl: nats://nats:4222
+    queueGroup: golang-app-queue
+
+golangApp2:
+  image:
+    repository: golang-app2
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 2
+  service:
+    port: 80
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+  config:
+    appPort: 8081
+    logLevel: info
+    dbHost: postgres-app2
+    dbPort: 5432
+    dbName: golang-app2
+    dbUser: app2
+    dbSslmode: disable
+    natsUrl: nats://nats:4222
+    queueGroup: golang-app2-queue
+    itemServiceUrl: http://golang-app:8080
+
+postgresApp:
+  enabled: true
+  image: postgres:16-alpine
+  port: 5432
+  db: golang-app
+  user: app
+  password: change-me
+  persistence:
+    size: 8Gi
+
+postgresApp2:
+  enabled: true
+  image: postgres:16-alpine
+  port: 5432
+  db: golang-app2
+  user: app2
+  password: change-me
+  persistence:
+    size: 8Gi
+
+nats:
+  image: nats:2.10-alpine
+  clientPort: 4222
+  monitorPort: 8222
+  persistence:
+    enabled: true
+    size: 5Gi
+
+networkPolicy:
+  enabled: true
+  ingress:
+    - from: [app, app2]
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: api.example.com
+      paths:
+        - path: /rest/v1/items
+          service: golang-app
+        - path: /rest/v1/orders
+          service: golang-app2
+  tls: []
+
+cors:
+  enabled: true
+  allowedOrigins: ["https://app.example.com"]
+  allowedMethods: [GET, POST, PATCH, DELETE, OPTIONS]
+  allowedHeaders: [Content-Type, X-Request-ID, X-Organization-ID, X-User-ID]

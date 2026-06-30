@@ -1,0 +1,100 @@
+openapi: "3.0.3"
+info:
+  title: golang-app2 API
+  description: Order microservice API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8081
+    description: Local development
+paths:
+  /rest/v1/orders:
+    get:
+      summary: Paginated order list with optional status filter
+      parameters:
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, shipped, delivered, canceled]
+      responses:
+        "200": { description: OK }
+    post:
+      summary: Create a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrderRequest" }
+      responses:
+        "201": { description: Created }
+  /rest/v1/orders/{id}:
+    get:
+      summary: Get order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found }
+    patch:
+      summary: Partial order update
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateOrderRequest" }
+      responses:
+        "200": { description: OK }
+    delete:
+      summary: Cancel an order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: No content }
+  /admin/health/liveness:
+    get:
+      summary: Liveness probe
+      responses: { "200": { description: OK } }
+  /admin/health/readiness:
+    get:
+      summary: Readiness probe (checks DB)
+      responses: { "200": { description: OK } }
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required: [items]
+      properties:
+        note: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [item_id, quantity, price]
+            properties:
+              item_id: { type: string }
+              quantity: { type: integer }
+              price: { type: number }
+    UpdateOrderRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, shipped, delivered, canceled]
+        note: { type: string }

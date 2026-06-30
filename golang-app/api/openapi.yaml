@@ -1,0 +1,98 @@
+openapi: "3.0.3"
+info:
+  title: golang-app API
+  description: Item microservice API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8080
+    description: Local development
+paths:
+  /rest/v1/items:
+    get:
+      summary: Paginated item list with optional status filter
+      parameters:
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, inactive, archived] }
+      responses:
+        "200": { description: OK }
+    post:
+      summary: Create a new item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateItemRequest" }
+      responses:
+        "201": { description: Created }
+  /rest/v1/items/{id}:
+    get:
+      summary: Get item by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found }
+    patch:
+      summary: Partial item update
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateItemRequest" }
+      responses:
+        "200": { description: OK }
+    delete:
+      summary: Delete an item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: No content }
+  /admin/health/liveness:
+    get:
+      summary: Liveness probe
+      responses:
+        "200": { description: OK }
+  /admin/health/readiness:
+    get:
+      summary: Readiness probe (checks DB)
+      responses:
+        "200": { description: OK }
+        "500": { description: Not ready }
+components:
+  schemas:
+    CreateItemRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+    UpdateItemRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [active, inactive, archived] }
+        tags:
+          type: array
+          items: { type: string }

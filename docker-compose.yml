@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  postgres-app:
+    image: postgres:16-alpine
+    container_name: golang-app-db
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_app_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d app_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres-app2:
+    image: postgres:16-alpine
+    container_name: golang-app2-db
+    environment:
+      POSTGRES_DB: app2_db
+      POSTGRES_USER: app2_user
+      POSTGRES_PASSWORD: app2_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_app2_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app2_user -d app2_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: golang-nats
+    command: "-js"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "nats", "server", "check", "connection"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pg_app_data:
+  pg_app2_data:

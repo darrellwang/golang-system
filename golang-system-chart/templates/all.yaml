@@ -1,0 +1,272 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-app
+  labels:
+    app: golang-app
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: golang-app
+  template:
+    metadata:
+      labels:
+        app: golang-app
+    spec:
+      containers:
+        - name: golang-app
+          image: "{{ .Values.golangApp.image.repository }}:{{ .Values.golangApp.image.tag }}"
+          imagePullPolicy: {{ .Values.golangApp.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.golangApp.service.port }}
+          env:
+            - name: SERVER_PORT
+              value: "{{ .Values.golangApp.service.port }}"
+            - name: APP_DB_DSN
+              value: "postgres://{{ .Values.golangApp.db.user }}:{{ .Values.golangApp.db.password }}@{{ .Values.golangApp.db.host }}:{{ .Values.golangApp.db.port }}/{{ .Values.golangApp.db.name }}?sslmode=disable"
+            - name: NATS_URL
+              value: {{ .Values.golangApp.nats.url | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.golangApp.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.golangApp.service.port }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-app
+  labels:
+    app: golang-app
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.golangApp.service.port }}
+      targetPort: {{ .Values.golangApp.service.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app: golang-app
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-app2
+  labels:
+    app: golang-app2
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: golang-app2
+  template:
+    metadata:
+      labels:
+        app: golang-app2
+    spec:
+      containers:
+        - name: golang-app2
+          image: "{{ .Values.golangApp2.image.repository }}:{{ .Values.golangApp2.image.tag }}"
+          imagePullPolicy: {{ .Values.golangApp2.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.golangApp2.service.port }}
+          env:
+            - name: SERVER_PORT
+              value: "{{ .Values.golangApp2.service.port }}"
+            - name: APP_DB_DSN
+              value: "postgres://{{ .Values.golangApp2.db.user }}:{{ .Values.golangApp2.db.password }}@{{ .Values.golangApp2.db.host }}:{{ .Values.golangApp2.db.port }}/{{ .Values.golangApp2.db.name }}?sslmode=disable"
+            - name: NATS_URL
+              value: {{ .Values.golangApp2.nats.url | quote }}
+            - name: APP_SERVICE_URL
+              value: {{ .Values.golangApp2.appServiceUrl | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.golangApp2.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.golangApp2.service.port }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-app2
+  labels:
+    app: golang-app2
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.golangApp2.service.port }}
+      targetPort: {{ .Values.golangApp2.service.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app: golang-app2
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-postgres-app
+  labels:
+    app: postgres-app
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-app
+  template:
+    metadata:
+      labels:
+        app: postgres-app
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgresApp.image }}"
+          ports:
+            - containerPort: {{ .Values.postgresApp.port }}
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresApp.db | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresApp.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgresApp.password | quote }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-app
+  labels:
+    app: postgres-app
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgresql
+  selector:
+    app: postgres-app
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-postgres-app2
+  labels:
+    app: postgres-app2
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-app2
+  template:
+    metadata:
+      labels:
+        app: postgres-app2
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgresApp2.image }}"
+          ports:
+            - containerPort: {{ .Values.postgresApp2.port }}
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresApp2.db | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresApp2.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.postgresApp2.password | quote }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-app2
+  labels:
+    app: postgres-app2
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgresql
+  selector:
+    app: postgres-app2
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-nats
+  labels:
+    app: nats
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: "{{ .Values.nats.image }}"
+          args: ["-js"]
+          ports:
+            - containerPort: {{ .Values.nats.port }}
+              name: client
+            - containerPort: {{ .Values.nats.monitorPort }}
+              name: monitor
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  labels:
+    app: nats
+    release: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4222
+      targetPort: 4222
+      protocol: TCP
+      name: client
+    - port: 8222
+      targetPort: 8222
+      protocol: TCP
+      name: monitor
+  selector:
+    app: nats

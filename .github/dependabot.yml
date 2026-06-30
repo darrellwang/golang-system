@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/golang-commons"
+    schedule:
+      interval: "weekly"
+    groups:
+      go-modules:
+        patterns: ["*"]
+  - package-ecosystem: "gomod"
+    directory: "/golang-events"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gomod"
+    directory: "/golang-app"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "gomod"
+    directory: "/golang-app2"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/golang-app"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/golang-app2"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

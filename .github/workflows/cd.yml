@@ -1,0 +1,97 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  dev:
+    environment: development
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.15.0
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_DEV }}
+
+      - name: helm dependency update
+        run: |
+          cd golang-system-chart
+          helm dependency update
+
+      - name: helm upgrade --install (DEV)
+        run: |
+          cd golang-system-chart
+          helm upgrade --install golang-system . \
+            --set global.environment=dev \
+            --set golang-app.image.tag=${{ github.sha }} \
+            --set golang-app2.image.tag=${{ github.sha }} \
+            --wait --timeout 10m
+
+      - name: Smoke test
+        run: |
+          kubectl rollout status deployment/golang-system-golang-app --timeout=5m
+          kubectl rollout status deployment/golang-system-golang-app2 --timeout=5m
+
+  staging:
+    needs: dev
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v3
+        with: { version: v3.15.0 }
+      - uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+      - name: helm dependency update
+        run: cd golang-system-chart && helm dependency update
+      - name: helm upgrade --install (STAG)
+        run: |
+          cd golang-system-chart
+          helm upgrade --install golang-system . \
+            --set global.environment=staging \
+            --set golang-app.image.tag=${{ github.sha }} \
+            --set golang-app2.image.tag=${{ github.sha }} \
+            --wait --timeout 10m
+      - name: Smoke test
+        run: |
+          kubectl rollout status deployment/golang-system-golang-app --timeout=5m
+          kubectl rollout status deployment/golang-system-golang-app2 --timeout=5m
+
+  prod:
+    needs: staging
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v3
+        with: { version: v3.15.0 }
+      - uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+      - name: helm dependency update
+        run: cd golang-system-chart && helm dependency update
+      - name: helm upgrade --install (PROD)
+        run: |
+          cd golang-system-chart
+          helm upgrade --install golang-system . \
+            --set global.environment=production \
+            --set golang-app.image.tag=${{ github.sha }} \
+            --set golang-app2.image.tag=${{ github.sha }} \
+            --wait --timeout 10m
+      - name: Smoke test
+        run: |
+          kubectl rollout status deployment/golang-system-golang-app --timeout=5m
+          kubectl rollout status deployment/golang-system-golang-app2 --timeout=5m

@@ -1,0 +1,17 @@
+replicaCount: 2
+image:
+  repository: golang-app
+  tag: latest
+  pullPolicy: Always
+service:
+  port: 80
+config:
+  appPort: 8080
+  logLevel: info
+  dbHost: postgres-app
+  dbPort: 5432
+  dbName: golang-app
+  dbUser: app
+  dbSslmode: disable
+  natsUrl: nats://nats:4222
+  queueGroup: golang-app-queue
