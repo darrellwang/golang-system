@@ -3,11 +3,86 @@ package httputil
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 )
+
+// CORSConfig holds Cross-Origin Resource Sharing configuration.
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	AllowCredentials bool
+	MaxAge           time.Duration
+}
+
+// DefaultCORSConfig returns a permissive CORS configuration for development.
+func DefaultCORSConfig() *CORSConfig {
+	return &CORSConfig{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+		MaxAge:         5 * time.Minute,
+	}
+}
+
+// CORSMiddleware adds CORS headers to responses.
+func CORSMiddleware(cfg *CORSConfig) func(http.Handler) http.Handler {
+	if cfg == nil {
+		cfg = DefaultCORSConfig()
+	}
+
+	allowedOrigins := strings.Join(cfg.AllowedOrigins, ",")
+	allowedMethods := strings.Join(cfg.AllowedMethods, ",")
+	allowedHeaders := strings.Join(cfg.AllowedHeaders, ",")
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
+			w.Header().Set("Access-Control-Allow-Methods", allowedMethods)
+			w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
+			if cfg.AllowCredentials {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+			if cfg.MaxAge > 0 {
+				w.Header().Set("Access-Control-Max-Age", intToString(int(cfg.MaxAge.Seconds())))
+			}
+
+			// Handle preflight requests
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func intToString(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	buf := make([]byte, 0, 12)
+	for n > 0 {
+		buf = append(buf, byte('0'+n%10))
+		n /= 10
+	}
+	if neg {
+		buf = append(buf, '-')
+	}
+	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
+		buf[i], buf[j] = buf[j], buf[i]
+	}
+	return string(buf)
+}
 
 // RequestIDMiddleware adds a request ID to context and response header.
 func RequestIDMiddleware(next http.Handler) http.Handler {

@@ -72,15 +72,31 @@ func (a *App) Start() error {
 	// Subscribe to events
 	a.subscribeNATS(nc, itemSvc, a.cfg.QueueGroup)
 
-	// HTTP router
+	// HTTP router with middleware chain
 	r := chi.NewRouter()
+	
+	// CORS middleware (must be first)
+	if len(a.cfg.CORSAllowedOrigins) > 0 {
+		corsCfg := &httputil.CORSConfig{
+			AllowedOrigins:   a.cfg.CORSAllowedOrigins,
+			AllowedMethods:   a.cfg.CORSAllowedMethods,
+			AllowedHeaders:   a.cfg.CORSAllowedHeaders,
+			AllowCredentials: a.cfg.CORSAllowCredentials,
+		}
+		r.Use(httputil.CORSMiddleware(corsCfg))
+	}
+	
 	r.Use(chiMW.RealIP)
 	r.Use(httputil.RequestIDMiddleware)
 	r.Use(httputil.AuthContextMiddleware)
 	r.Use(httputil.RecoveryMiddleware(a.log))
 	r.Use(httputil.MaxBodySizeMiddleware(1 << 20))
 	r.Use(httputil.ContentTypeMiddleware)
+	r.Use(httputil.MetricsMiddleware)
 	r.Use(httputil.LoggingMiddleware(a.log))
+
+	// Prometheus metrics endpoint
+	r.Handle("/metrics", httputil.MetricsHandler())
 
 	// Health endpoints
 	checker := database.NewHealthChecker(pool)
@@ -101,8 +117,15 @@ func (a *App) Start() error {
 	addr := fmt.Sprintf(":%d", a.cfg.AppPort)
 	a.srv = &http.Server{Addr: addr, Handler: r}
 
-	a.log.Info().Int("port", a.cfg.AppPort).Msg("server starting")
-	if err := a.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	a.log.Info().Int("port", a.cfg.AppPort).Bool("tls", a.cfg.TLSEnabled).Msg("server starting")
+
+	if a.cfg.TLSEnabled && a.cfg.TLSCertFile != "" && a.cfg.TLSKeyFile != "" {
+		err = a.srv.ListenAndServeTLS(a.cfg.TLSCertFile, a.cfg.TLSKeyFile)
+	} else {
+		err = a.srv.ListenAndServe()
+	}
+
+	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
 	return nil

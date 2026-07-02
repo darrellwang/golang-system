@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Version is injected at build time via -ldflags.
@@ -23,8 +24,17 @@ type Config struct {
 	DBPassword string
 	DBSSLMode  string
 
-	NATSURL    string
-	QueueGroup string
+	NATSURL            string
+	QueueGroup         string
+
+	TLSEnabled         bool
+	TLSCertFile        string
+	TLSKeyFile         string
+
+	CORSAllowedOrigins []string
+	CORSAllowedMethods []string
+	CORSAllowedHeaders []string
+	CORSAllowCredentials bool
 }
 
 // Load reads configuration from environment variables.
@@ -42,6 +52,14 @@ func Load() *Config {
 		DBSSLMode:  envStr("DB_SSLMODE", "disable"),
 		NATSURL:    envStr("NATS_URL", "nats://localhost:4222"),
 		QueueGroup: envStr("QUEUE_GROUP", "golang-app-queue"),
+
+		TLSEnabled:           envBool("TLS_ENABLED", false),
+		TLSCertFile:          envStr("TLS_CERT_FILE", ""),
+		TLSKeyFile:           envStr("TLS_KEY_FILE", ""),
+		CORSAllowedOrigins:   envStrSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
+		CORSAllowedMethods:   envStrSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}),
+		CORSAllowedHeaders:   envStrSlice("CORS_ALLOWED_HEADERS", []string{"*"}),
+		CORSAllowCredentials: envBool("CORS_ALLOW_CREDENTIALS", false),
 	}
 }
 
@@ -59,4 +77,29 @@ func envInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+func envBool(key string, def bool) bool {
+	if v := os.Getenv(key); v != "" {
+		return v == "true" || v == "1" || v == "yes"
+	}
+	return def
+}
+
+func envStrSlice(key string, def []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	var result []string
+	for _, item := range strings.Split(v, ",") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+	if len(result) == 0 {
+		return def
+	}
+	return result
 }

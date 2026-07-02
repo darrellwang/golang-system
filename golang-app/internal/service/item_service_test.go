@@ -106,3 +106,120 @@ func TestHandleGetItemByID(t *testing.T) {
 		t.Fatalf("unexpected: %+v %v", resp, err)
 	}
 }
+
+func TestCreateItem_EmptyName(t *testing.T) {
+	svc, _ := newSvc()
+	_, err := svc.CreateItem(context.Background(), &domain.CreateItemRequest{
+		Name: "", Description: "desc", Tags: []string{},
+	})
+	if err == nil {
+		t.Fatal("expected error for empty name")
+	}
+}
+
+func TestDeleteItem_Success(t *testing.T) {
+	svc, repo := newSvc()
+	item := &domain.Item{ID: "to-delete", Name: "n", Status: domain.ItemStatusActive, CreatedAt: time.Now()}
+	repo.items[item.ID] = item
+
+	err := svc.DeleteItem(context.Background(), item.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, exists := repo.items["to-delete"]; exists {
+		t.Fatal("expected item to be deleted from repo")
+	}
+}
+
+func TestDeleteItem_NotFound(t *testing.T) {
+	svc, _ := newSvc()
+	err := svc.DeleteItem(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for deleting nonexistent item")
+	}
+}
+
+func TestListItems_DefaultLimit(t *testing.T) {
+	svc, repo := newSvc()
+	// Add 5 items
+	for i := 0; i < 5; i++ {
+		repo.items[string(rune('a'+i))] = &domain.Item{ID: string(rune('a' + i)), Name: "item", Status: domain.ItemStatusActive, CreatedAt: time.Now()}
+	}
+
+	items, total, err := svc.ListItems(context.Background(), 0, 0, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 5 {
+		t.Errorf("expected total 5, got %d", total)
+	}
+	if len(items) != 5 {
+		t.Errorf("expected 5 items returned (default limit), got %d", len(items))
+	}
+}
+
+func TestListItems_NegativeOffset(t *testing.T) {
+	svc, _ := newSvc()
+	_, _, err := svc.ListItems(context.Background(), -1, 10, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestListItems_ExcessiveLimit(t *testing.T) {
+	svc, repo := newSvc()
+	repo.items["x"] = &domain.Item{ID: "x", Name: "n", Status: domain.ItemStatusActive, CreatedAt: time.Now()}
+
+	_, total, err := svc.ListItems(context.Background(), 0, 200, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 1 {
+		t.Errorf("expected total 1, got %d", total)
+	}
+}
+
+func TestUpdateItem_StatusChange(t *testing.T) {
+	svc, repo := newSvc()
+	item := &domain.Item{ID: "x", Name: "n", Status: domain.ItemStatusActive, CreatedAt: time.Now()}
+	repo.items["x"] = item
+
+	inactive := domain.ItemStatusInactive
+	updated, err := svc.UpdateItem(context.Background(), "x", &domain.UpdateItemRequest{Status: &inactive})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Status != domain.ItemStatusInactive {
+		t.Errorf("expected status inactive, got %s", updated.Status)
+	}
+}
+
+func TestHandleExternalCreate(t *testing.T) {
+	svc, _ := newSvc()
+	evt := &events.Event[events.ItemCreatedData]{
+		Data: events.ItemCreatedData{ID: "ext-1", Name: "external-item"},
+	}
+	err := svc.HandleExternalCreate(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestHandleOrderCreated(t *testing.T) {
+	svc, _ := newSvc()
+	evt := &events.Event[events.OrderCreatedData]{
+		Data: events.OrderCreatedData{ID: "order-1", Items: []events.OrderItem{{ItemID: "item-1"}}},
+	}
+	err := svc.HandleOrderCreated(context.Background(), evt)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetItem_NotFound_Error(t *testing.T) {
+	svc, _ := newSvc()
+	_, err := svc.GetItem(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent item")
+	}
+}
