@@ -1,0 +1,294 @@
+# ============================================
+# 熔断配置 - DestinationRule
+# 为 golang-app 和 golang-app2 配置熔断策略
+# ============================================
+
+---
+# golang-app (Item Service) 熔断配置
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: golang-app-circuit-breaking
+  namespace: default
+  labels:
+    app: golang-app
+    component: circuit-breaking
+spec:
+  # 目标服务
+  host: golang-app
+  
+  # 流量策略
+  trafficPolicy:
+    # 连接池配置 - 防止连接耗尽
+    connectionPool:
+      tcp:
+        maxConnections: 100              # 最大 TCP 连接数
+        connectTimeout: 30s              # 连接超时
+        tcpKeepalive:
+          time: 7200s                    # TCP Keepalive 时间
+          interval: 75s                  # TCP Keepalive 间隔
+          probes: 9                      # TCP Keepalive 探测次数
+      http:
+        http1MaxPendingRequests: 50      # HTTP/1.1 最大等待请求数
+        http2MaxRequests: 100            # HTTP/2 最大并发请求数
+        maxRequestsPerConnection: 10     # 每个连接最大请求数 (连接复用)
+        maxRetries: 3                    # 最大重试次数
+        idleTimeout: 3600s               # 空闲连接超时
+    
+    # 异常检测 (熔断)
+    outlierDetection:
+      consecutiveGatewayErrors: 5        # 连续网关错误次数 (触发熔断)
+      consecutive5xxErrors: 5            # 连续 5xx 错误次数 (触发熔断)
+      interval: 30s                      # 检测间隔
+      baseEjectionTime: 30s              # 基础熔断时间
+      maxEjectionPercent: 50             # 最大熔断实例百分比 (防止全部熔断)
+      minHealthPercent: 30               # 最小健康实例百分比 (低于此值停止熔断)
+      failureDrag: 50s                   # 失败拖尾时间
+    
+    # 端口级别策略 (可选)
+    portLevelSettings:
+    - port:
+        number: 8080
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 30
+  
+  # 子集定义 (用于版本路由)
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      # v1 版本的特定配置
+      connectionPool:
+        tcp:
+          maxConnections: 100
+        http:
+          http1MaxPendingRequests: 50
+  
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      # v2 版本的特定配置 (更严格的限制)
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+      outlierDetection:
+        consecutive5xxErrors: 3          # v2 更严格
+        baseEjectionTime: 60s
+
+---
+# golang-app2 (Order Service) 熔断配置
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: golang-app2-circuit-breaking
+  namespace: default
+  labels:
+    app: golang-app2
+    component: circuit-breaking
+spec:
+  host: golang-app2
+  
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+        tcpKeepalive:
+          time: 7200s
+          interval: 75s
+          probes: 9
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+        idleTimeout: 3600s
+    
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+      failureDrag: 50s
+  
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 100
+        http:
+          http1MaxPendingRequests: 50
+  
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      connectionPool:
+        tcp:
+          maxConnections: 50
+        http:
+          http1MaxPendingRequests: 25
+      outlierDetection:
+        consecutive5xxErrors: 3
+        baseEjectionTime: 60s
+
+---
+# PostgreSQL 熔断配置 (可选)
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: postgres-circuit-breaking
+  namespace: default
+spec:
+  host: postgres-app
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 10s
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 10s
+      baseEjectionTime: 60s
+
+---
+# NATS 熔断配置 (可选)
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: nats-circuit-breaking
+  namespace: default
+spec:
+  host: nats
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 10s
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      interval: 10s
+      baseEjectionTime: 60s
+
+---
+# ============================================
+# 负载均衡配置 - DestinationRule
+# ============================================
+
+---
+# golang-app 负载均衡配置
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: golang-app-load-balancing
+  namespace: default
+spec:
+  host: golang-app
+  
+  # 负载均衡算法
+  trafficPolicy:
+    # 负载均衡 - 最少连接
+    loadBalancer:
+      simple: LEAST_CONN
+    
+    # 地区负载均衡 (如果使用多地区部署)
+    # localityLbSetting:
+    #   enabled: true
+    #   distribute:
+    #   - from: region/zone/sub-zone
+    #     to:
+    #       region/zone/sub-zone: 80
+    #       region/zone/sub-zone2: 20
+    
+    # 连接池
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        maxRequestsPerConnection: 10
+  
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      loadBalancer:
+        simple: ROUND_ROBIN  # v1 使用轮询
+  
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      loadBalancer:
+        simple: LEAST_CONN  # v2 使用最少连接
+
+---
+# golang-app2 负载均衡配置
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: golang-app2-load-balancing
+  namespace: default
+spec:
+  host: golang-app2
+  
+  trafficPolicy:
+    loadBalancer:
+      simple: LEAST_CONN
+  
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+    trafficPolicy:
+      loadBalancer:
+        simple: ROUND_ROBIN
+  
+  - name: v2
+    labels:
+      version: v2
+    trafficPolicy:
+      loadBalancer:
+        simple: LEAST_CONN
+
+---
+# ============================================
+# 使用说明
+# ============================================
+# 
+# 1. 应用配置:
+#    kubectl apply -f destination-rule-circuit-breaking.yaml
+# 
+# 2. 查看配置:
+#    kubectl get destinationrule
+#    kubectl describe destinationrule golang-app-circuit-breaking
+# 
+# 3. 测试熔断:
+#    # 进入测试 pod
+#    kubectl run fortio --image=fortio/fortio -- sleep 3600
+#    
+#    # 发送大量请求触发熔断
+#    kubectl exec fortio -- fortio load -qps 100 -n 1000 http://golang-app:8080/rest/v1/items
+#    
+#    # 查看熔断状态
+#    kubectl exec deployment/golang-app -c istio-proxy -- curl localhost:15000/stats | grep outlier
+# 
+# 4. 查看 Proxy 配置:
+#    istioctl proxy-config cluster deployment/golang-app
+#    istioctl proxy-config listener deployment/golang-app
+# 
+# 5. 删除配置:
+#    kubectl delete -f destination-rule-circuit-breaking.yaml

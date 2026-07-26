@@ -1,0 +1,243 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: istio-control-plane
+  namespace: istio-system
+spec:
+  # 使用默认 profile (包含 istiod, ingress gateway)
+  profile: default
+  
+  # 组件配置
+  components:
+    # Istio Pilot (控制平面)
+    pilot:
+      enabled: true
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: PILOT_TRACE_SAMPLING
+          value: "1.0"
+        - name: PILOT_HTTP10
+          value: "true"
+    
+    # Ingress Gateway - API 网关
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true
+      label:
+        app: istio-ingressgateway
+        istio: ingressgateway
+      k8s:
+        service:
+          type: LoadBalancer
+          ports:
+          - port: 80
+            targetPort: 8080
+            name: http
+          - port: 443
+            targetPort: 8443
+            name: https
+          - port: 15021
+            targetPort: 15021
+            name: status-port
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        hpaSpec:
+          minReplicas: 1
+          maxReplicas: 5
+          metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 80
+    
+    # Egress Gateway (禁用，按需启用)
+    egressGateways:
+    - name: istio-egressgateway
+      enabled: false
+  
+  # 全局配置
+  values:
+    # 全局设置
+    global:
+      # mTLS 模式
+      mtls:
+        enabled: true
+      
+      # 网络配置
+      network: ""
+      
+      # 日志级别
+      logging:
+        level: "info"
+      
+      # 代理配置
+      proxy:
+        logLevel: warning
+        componentLogLevel: "misc:error"
+        includeIPRanges: "*"
+        excludeIPRanges: ""
+        includeInboundPorts: "*"
+        excludeInboundPorts: ""
+      
+      # 初始化容器配置
+      init:
+        logLevel: warning
+      
+      # 镜像配置
+      hub: gcr.io/istio-release
+      tag: "1.20.0"
+    
+    # Pilot 配置
+    pilot:
+      enabled: true
+      traceSampling: 1.0
+      env:
+        PILOT_ENABLE_PROTOCOL_SNIFFING_FOR_OUTBOUND: "true"
+        PILOT_ENABLE_PROTOCOL_SNIFFING_FOR_INBOUND: "true"
+        PILOT_DISABLE_XDS_MARSHALING_TO_ANY: "true"
+    
+    # Sidecar 注入器配置
+    sidecarInjectorWebhook:
+      enabled: true
+      injectLabel: istio-injection
+      rewriteAppHTTPProbe: true
+      injectedAnnotations:
+        traffic.sidecar.istio.io/includeInboundPorts: "*"
+        traffic.sidecar.istio.io/includeOutboundIPRanges: "*"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "443"
+    
+    # 遥测配置
+    telemetry:
+      enabled: true
+      v2:
+        enabled: true
+        prometheus:
+          enabled: true
+        stackdriver:
+          enabled: false
+    
+    # CNI 配置 (rke2 使用 canal CNI，暂不启用 Istio CNI)
+    cni:
+      enabled: false
+      chained: false
+      cniBinDir: /opt/cni/bin
+      cniConfDir: /etc/cni/net.d
+    
+    # 网关配置
+    gateways:
+      istio-ingressgateway:
+        autoscaleEnabled: true
+        autoscaleMin: 1
+        autoscaleMax: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        type: LoadBalancer
+        ports:
+        - targetPort: 8080
+          name: http
+          nodePort: 30080
+          port: 80
+        - targetPort: 8443
+          name: https
+          nodePort: 30443
+          port: 443
+        - targetPort: 15021
+          name: status-port
+          port: 15021
+    
+    # 可观测性配置
+    tracing:
+      enabled: true
+      provider: jaeger
+      jaeger:
+        host: jaeger-collector.istio-system.svc.cluster.local
+        port: 14268
+    
+    # Prometheus 配置
+    prometheus:
+      enabled: true
+      createPrometheusResource: false
+      scrapeInterval: 15s
+      scrapeConfigs:
+      - jobName: kubernetes-apiservers
+        scheme: https
+        kubernetesSDConfigs:
+        - role: endpoints
+        relabelConfigs:
+        - sourceLabels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+    
+    # Grafana 配置
+    grafana:
+      enabled: true
+      secretName: grafana
+      user: admin
+      pass: admin
+      URL: http://grafana.istio-system.svc.cluster.local
+    
+    # Kiali 配置
+    kiali:
+      enabled: true
+      dashboard:
+        auth:
+          strategy: login
+      graph:
+        vendor: kiali
+    
+    # CNI 网络配置
+    meshConfig:
+      enableTracing: true
+      accessLogFile: /dev/stdout
+      accessLogEncoding: JSON
+      accessLogFormat: |
+        [%START_TIME%] "%REQ(:METHOD)%" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION%
+        "%REQ(X-FORWARDED-FOR)%" "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
+      
+      # 扩展配置
+      defaultConfig:
+        tracing:
+          zipkin:
+            address: zipkin.istio-system:9411
+        proxyStatsMatcher:
+          inclusionRegexps:
+          - ".*circuit_breakers.*"
+          - ".*upstream_rq_retry.*"
+          - ".*outlier_detection.*"
+        envoyMetricsService:
+          address: metrics-service:15000
+          tlsSettings:
+            mode: ISTIO_MUTUAL
+      
+      # 启用服务发现
+      serviceDiscovery:
+        enabled: true
+      
+      # 启用熔断检测
+      outlierDetection:
+        enabled: true
+        consecutiveGatewayErrors: 5
+        consecutive5xxErrors: 5
+        interval: 30s
+        baseEjectionTime: 30s
+        maxEjectionPercent: 50
+        minHealthPercent: 30

@@ -81,10 +81,24 @@ func (s *orderService) CreateOrder(ctx context.Context, req *domain.CreateOrderR
 	}
 	s.trackedMu.Unlock()
 
-	go func() {
-		_ = s.publisher.PublishOrderCreated(context.Background(), order)
-	}()
+	s.publishAsync(ctx, func(ctx context.Context) error {
+		return s.publisher.PublishOrderCreated(ctx, order)
+	})
 	return order, nil
+}
+
+// publishAsync publishes a domain event without blocking the request path.
+// It inherits trace values (request_id, user_id, ...) from ctx via
+// context.WithoutCancel, but detaches cancellation so the event is still
+// published after the originating request has already returned. Publish
+// failures are logged rather than silently dropped — losing domain events
+// in an event-driven architecture is a P0 concern.
+func (s *orderService) publishAsync(ctx context.Context, fn func(ctx context.Context) error) {
+	go func() {
+		if err := fn(context.WithoutCancel(ctx)); err != nil {
+			s.log.Error().Err(err).Msg("failed to publish domain event")
+		}
+	}()
 }
 
 func (s *orderService) GetOrder(ctx context.Context, id string) (*domain.Order, error) {
@@ -123,9 +137,9 @@ func (s *orderService) UpdateOrder(ctx context.Context, id string, req *domain.U
 	if err := s.repo.Update(ctx, o); err != nil {
 		return nil, apperror.Internal("update order", err)
 	}
-	go func() {
-		_ = s.publisher.PublishOrderUpdated(context.Background(), o)
-	}()
+	s.publishAsync(ctx, func(ctx context.Context) error {
+		return s.publisher.PublishOrderUpdated(ctx, o)
+	})
 	return o, nil
 }
 
@@ -142,9 +156,9 @@ func (s *orderService) CancelOrder(ctx context.Context, id string) error {
 	if err := s.repo.Update(ctx, o); err != nil {
 		return apperror.Internal("cancel order", err)
 	}
-	go func() {
-		_ = s.publisher.PublishOrderCanceled(context.Background(), o, "user requested")
-	}()
+	s.publishAsync(ctx, func(ctx context.Context) error {
+		return s.publisher.PublishOrderCanceled(ctx, o, "user requested")
+	})
 	return nil
 }
 
@@ -189,7 +203,9 @@ func (s *orderService) HandleItemDeleted(ctx context.Context, evt *events.Event[
 			Str("order_id", id).
 			Str("item_id", evt.Data.ID).
 			Msg("order auto-canceled due to item deletion")
-		_ = s.publisher.PublishOrderCanceled(ctx, order, "referenced item was deleted")
+		if err := s.publisher.PublishOrderCanceled(ctx, order, "referenced item was deleted"); err != nil {
+			s.log.Error().Err(err).Str("order_id", id).Msg("failed to publish auto-cancel event")
+		}
 	}
 	return nil
 }

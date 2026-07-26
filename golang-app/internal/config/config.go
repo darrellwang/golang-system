@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -9,6 +10,10 @@ import (
 
 // Version is injected at build time via -ldflags.
 var Version = "dev"
+
+// defaultDevDBPassword matches docker-compose.yml for local development only.
+// Production deployments must override it via the DB_PASSWORD env var.
+const defaultDevDBPassword = "app_password"
 
 // Config is the application configuration.
 type Config struct {
@@ -39,16 +44,18 @@ type Config struct {
 
 // Load reads configuration from environment variables.
 func Load() *Config {
-	return &Config{
+	cfg := &Config{
 		AppPort:    envInt("APP_PORT", 8080),
 		AppMode:    envStr("APP_MODE", "DEV"),
 		AppName:    envStr("APP_NAME", "golang-app"),
 		LogLevel:   envStr("LOG_LEVEL", "info"),
+		// DB defaults match docker-compose.yml (postgres-app) so the
+		// service runs out of the box in local development.
 		DBHost:     envStr("DB_HOST", "localhost"),
 		DBPort:     envInt("DB_PORT", 5432),
-		DBUser:     envStr("DB_USER", "app"),
-		DBName:     envStr("DB_NAME", "golang-app"),
-		DBPassword: envStr("DB_PASSWORD", ""),
+		DBUser:     envStr("DB_USER", "app_user"),
+		DBName:     envStr("DB_NAME", "app_db"),
+		DBPassword: envStr("DB_PASSWORD", defaultDevDBPassword),
 		DBSSLMode:  envStr("DB_SSLMODE", "disable"),
 		NATSURL:    envStr("NATS_URL", "nats://localhost:4222"),
 		QueueGroup: envStr("QUEUE_GROUP", "golang-app-queue"),
@@ -60,6 +67,32 @@ func Load() *Config {
 		CORSAllowedMethods:   envStrSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}),
 		CORSAllowedHeaders:   envStrSlice("CORS_ALLOWED_HEADERS", []string{"*"}),
 		CORSAllowCredentials: envBool("CORS_ALLOW_CREDENTIALS", false),
+	}
+	cfg.validateSecurityDefaults()
+	return cfg
+}
+
+// validateSecurityDefaults warns about insecure CORS defaults when running
+// in PROD mode. "*" origins/headers are convenient for local development
+// but expose the service to cross-origin abuse in production.
+func (c *Config) validateSecurityDefaults() {
+	if c.AppMode != "PROD" {
+		return
+	}
+	if c.DBPassword == defaultDevDBPassword {
+		fmt.Fprintln(os.Stderr, "WARNING: using the default development DB password in PROD mode — set DB_PASSWORD to a strong secret.")
+	}
+	for _, o := range c.CORSAllowedOrigins {
+		if o == "*" {
+			fmt.Fprintln(os.Stderr, "WARNING: CORS_ALLOWED_ORIGINS is '*' in PROD mode — set explicit origins to prevent cross-origin abuse.")
+			break
+		}
+	}
+	for _, h := range c.CORSAllowedHeaders {
+		if h == "*" {
+			fmt.Fprintln(os.Stderr, "WARNING: CORS_ALLOWED_HEADERS is '*' in PROD mode — set explicit headers.")
+			break
+		}
 	}
 }
 

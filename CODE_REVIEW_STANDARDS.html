@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>golang-system 代码审查标准与流程 · Code Review Standards & Process</title>
+<style>
+  :root{
+    --bg:#fafafa; --surface:#ffffff; --border:#e2e8f0; --text:#1e293b;
+    --text-muted:#64748b; --primary:#6d28d9; --primary-light:#ede9fe;
+    --red:#dc2626; --red-bg:#fef2f2; --amber:#d97706; --amber-bg:#fffbeb;
+    --green:#059669; --green-bg:#ecfdf5; --blue:#2563eb; --blue-bg:#eff6ff;
+    --code-bg:#f1f5f9; --code-text:#334155;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.7;margin:0;padding:0;
+    font-size:15px;}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 80px;}
+  header.hero{background:linear-gradient(135deg,#6d28d9 0%,#4c1d95 100%);
+    color:#fff;padding:48px 32px;border-radius:16px;margin-bottom:36px;
+    box-shadow:0 10px 30px rgba(109,40,217,.18);}
+  header.hero h1{margin:0 0 8px;font-size:30px;font-weight:700;}
+  header.hero .sub{opacity:.92;font-size:15px;margin-bottom:14px;}
+  header.hero .meta{display:flex;flex-wrap:wrap;gap:8px;}
+  header.hero .tag{background:rgba(255,255,255,.18);padding:4px 12px;border-radius:999px;
+    font-size:12px;backdrop-filter:blur(4px);}
+  h2{font-size:23px;margin:44px 0 14px;padding-bottom:10px;border-bottom:2px solid var(--primary);
+    color:var(--primary);font-weight:700;}
+  h2 .en{color:var(--text-muted);font-weight:500;font-size:16px;margin-left:8px;}
+  h3{font-size:18px;margin:28px 0 10px;color:var(--text);font-weight:600;}
+  h4{font-size:15px;margin:20px 0 8px;color:var(--primary);font-weight:600;}
+  p{margin:8px 0;}
+  ul,ol{margin:8px 0;padding-left:24px;}
+  li{margin:5px 0;}
+  code{background:var(--code-bg);color:var(--code-text);padding:2px 6px;border-radius:4px;
+    font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:13px;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px 18px;border-radius:10px;overflow-x:auto;
+    margin:12px 0;font-size:13px;line-height:1.55;}
+  pre code{background:transparent;color:inherit;padding:0;font-size:13px;}
+  .kw{color:#c084fc;} .ty{color:#7dd3fc;} .st{color:#86efac;} .cm{color:#94a3b8;font-style:italic;}
+  .fn{color:#fcd34d;}
+  table{width:100%;border-collapse:collapse;margin:14px 0;background:var(--surface);
+    border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:14px;}
+  th{background:var(--primary-light);color:var(--primary);text-align:left;padding:10px 12px;
+    font-weight:600;border-bottom:1px solid var(--border);}
+  td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#faf5ff;}
+  .callout{border-left:4px solid;padding:14px 18px;border-radius:0 8px 8px 0;margin:14px 0;}
+  .callout.red{background:var(--red-bg);border-color:var(--red);}
+  .callout.amber{background:var(--amber-bg);border-color:var(--amber);}
+  .callout.green{background:var(--green-bg);border-color:var(--green);}
+  .callout.blue{background:var(--blue-bg);border-color:var(--blue);}
+  .callout .lbl{font-weight:700;margin-bottom:4px;display:block;}
+  .callout.red .lbl{color:var(--red);} .callout.amber .lbl{color:var(--amber);}
+  .callout.green .lbl{color:var(--green);} .callout.blue .lbl{color:var(--blue);}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;}
+  .b-red{background:var(--red-bg);color:var(--red);}
+  .b-amber{background:var(--amber-bg);color:var(--amber);}
+  .b-green{background:var(--green-bg);color:var(--green);}
+  .b-blue{background:var(--blue-bg);color:var(--blue);}
+  .b-gray{background:#f1f5f9;color:#475569;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:16px 18px;}
+  .card h4{margin-top:0;}
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px;}
+  .toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:18px 24px;margin:24px 0;}
+  .toc h3{margin-top:0;color:var(--primary);}
+  .toc ol{margin:0;columns:2;column-gap:32px;}
+  .toc li{margin:4px 0;break-inside:avoid;}
+  .toc a{color:var(--text);text-decoration:none;}
+  .toc a:hover{color:var(--primary);}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:14px 0;border:1px solid var(--border);
+    border-radius:8px;overflow:hidden;}
+  .compare > div{padding:14px 16px;}
+  .compare .bad{background:var(--red-bg);border-right:1px solid var(--border);}
+  .compare .good{background:var(--green-bg);}
+  .compare .head{font-weight:700;margin-bottom:8px;font-size:13px;}
+  .compare .bad .head{color:var(--red);} .compare .good .head{color:var(--green);}
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0;}
+  .flow .step{background:var(--surface);border:2px solid var(--primary);color:var(--primary);
+    padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;}
+  .flow .arrow{color:var(--primary);font-size:20px;font-weight:700;}
+  .slas{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0;}
+  .sla{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+    padding:14px;text-align:center;}
+  .sla .num{font-size:24px;font-weight:700;color:var(--primary);}
+  .sla .lbl{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .footnote{font-size:13px;color:var(--text-muted);margin-top:4px;}
+  .checklist{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:8px 24px 12px;margin:12px 0;}
+  .checklist li{list-style:none;margin-left:-20px;padding-left:28px;position:relative;}
+  .checklist li::before{content:"☐";position:absolute;left:0;color:var(--primary);font-size:16px;}
+  @media(max-width:760px){
+    .grid2,.compare,.slas{grid-template-columns:1fr;}
+    .compare > div{border-right:none;border-bottom:1px solid var(--border);}
+    .toc ol{columns:1;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>👁️ golang-system 代码审查标准与流程</h1>
+  <div class="sub">Code Review Standards &amp; Process — 为六边形架构 + 事件驱动 Go 微服务系统量身定制</div>
+  <div class="meta">
+    <span class="tag">Go 1.23+</span>
+    <span class="tag">Hexagonal Architecture</span>
+    <span class="tag">NATS JetStream</span>
+    <span class="tag">PostgreSQL 16</span>
+    <span class="tag">Istio Service Mesh</span>
+    <span class="tag">Helm / K8s</span>
+    <span class="tag">GitHub Actions CI/CD</span>
+  </div>
+</header>
+
+<div class="callout blue">
+  <span class="lbl">📖 适用范围 / Scope</span>
+  本标准适用于 <code>golang-system</code> 仓库下的全部模块：<code>golang-commons</code>（共享库）、<code>golang-events</code>（事件契约）、<code>golang-app</code>（Item 服务）、<code>golang-app2</code>（Order 服务）、<code>golang-system-chart</code>（Helm 总图表）以及 <code>istio-config/</code>（服务网格配置）。所有通过 Pull Request 合入 <code>main</code> / <code>develop</code> 分支的变更均须遵循本标准。
+</div>
+
+<div class="toc">
+  <h3>📑 目录 / Table of Contents</h3>
+  <ol>
+    <li><a href="#goals">审查目标与原则</a></li>
+    <li><a href="#roles">角色与职责</a></li>
+    <li><a href="#process">审查流程</a></li>
+    <li><a href="#priority">问题优先级分级</a></li>
+    <li><a href="#go">Go 语言规范</a></li>
+    <li><a href="#arch">六边形架构合规</a></li>
+    <li><a href="#micro">微服务设计</a></li>
+    <li><a href="#security">安全审查</a></li>
+    <li><a href="#perf">性能审查</a></li>
+    <li><a href="#test">测试审查</a></li>
+    <li><a href="#obs">可观测性</a></li>
+    <li><a href="#db">数据库与迁移</a></li>
+    <li><a href="#events">事件驱动消息</a></li>
+    <li><a href="#api">API 设计</a></li>
+    <li><a href="#deploy">部署配置（Helm/Istio/Docker）</a></li>
+    <li><a href="#checklist">合并前审查清单</a></li>
+    <li><a href="#comments">评论格式与礼仪</a></li>
+    <li><a href="#antipatterns">常见反模式（本项目实例）</a></li>
+    <li><a href="#automation">自动化工具链</a></li>
+    <li><a href="#metrics">度量与持续改进</a></li>
+  </ol>
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="goals">1. 审查目标与原则 <span class="en">Goals &amp; Principles</span></h2>
+
+<p><strong>代码审查不是找茬，而是导师式的质量共建。</strong> 我们通过审查同时达成两个目标：提升代码质量，提升团队成员的工程能力。每次评论都应让作者学到东西，而不仅仅是被告知改什么。</p>
+
+<div class="grid2">
+  <div class="card">
+    <h4>✅ 我们追求的 / We Pursue</h4>
+    <ul>
+      <li><strong>正确性</strong>：逻辑是否真的实现了需求？</li>
+      <li><strong>安全性</strong>：有无注入、越权、敏感信息泄露？</li>
+      <li><strong>可维护性</strong>：6 个月后还能看懂吗？</li>
+      <li><strong>性能</strong>：是否有 N+1 查询、不必要的分配？</li>
+      <li><strong>可测试性</strong>：关键路径是否被测试覆盖？</li>
+      <li><strong>架构一致性</strong>：是否守住六边形架构的边界？</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>🚫 我们不纠结的 / We Skip</h4>
+    <ul>
+      <li>Tab vs Space（交给 <code>gofmt</code> / <code>goimports</code>）</li>
+      <li>纯个人风格偏好（除非影响可读性）</li>
+      <li>能被 linter 自动修复的问题（交给 <code>golangci-lint</code>）</li>
+      <li>未实现功能的「更好写法」理论讨论</li>
+      <li>命名审美之争（遵循命名规范即可）</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout green">
+  <span class="lbl">🌟 核心原则 / Core Principles</span>
+  <ol style="margin:0;">
+    <li><strong>具体而非笼统</strong> — "第 42 行存在 SQL 注入风险"，而非"有安全问题"。</li>
+    <li><strong>解释原因</strong> — 不只说改什么，说清楚为什么这样改。</li>
+    <li><strong>建议而非命令</strong> — "建议用 X，因为 Y"，而非"改成 X"。</li>
+    <li><strong>分级优先</strong> — 每条评论标注 🔴/🟡/💭 优先级。</li>
+    <li><strong>表扬好代码</strong> — 看到巧妙解法或清晰模式，要点赞。</li>
+    <li><strong>一次审完</strong> — 不要把评论挤牙膏式分多轮给出。</li>
+  </ol>
+</div>
+
+<!-- ============ 2 ============ -->
+<h2 id="roles">2. 角色与职责 <span class="en">Roles &amp; Responsibilities</span></h2>
+
+<table>
+  <thead><tr><th>角色 / Role</th><th>职责 / Responsibility</th><th>说明 / Notes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>作者 / Author</strong></td>
+      <td>提交高质量 PR；自审后再请求评审；及时响应评论；推动 PR 到合并</td>
+      <td>PR 标题遵循 Conventional Commits；描述包含「改了什么、为什么、如何测试」</td></tr>
+    <tr><td><strong>审查者 / Reviewer</strong></td>
+      <td>按本标准逐维度审查；给出分级、可操作的评论；区分「必须改」与「可选」</td>
+      <td>至少 1 名审查者通过方可合并；涉及公共模块需 2 名</td></tr>
+    <tr><td><strong>模块负责人 / Module Owner</strong></td>
+      <td>对 <code>golang-commons</code> / <code>golang-events</code> 等共享模块的变更拥有最终决定权</td>
+      <td>共享模块改动影响所有服务，需格外谨慎</td></tr>
+    <tr><td><strong>架构守门人 / Architecture Guardian</strong></td>
+      <td>守护六边形架构边界、模块依赖方向、事件契约的向后兼容</td>
+      <td>可由资深工程师轮值；跨服务重构必须经过此角色</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 3 ============ -->
+<h2 id="process">3. 审查流程 <span class="en">Review Process</span></h2>
+
+<h3>3.1 PR 生命周期 / PR Lifecycle</h3>
+<div class="flow">
+  <span class="step">① 自审 Self-Review</span><span class="arrow">→</span>
+  <span class="step">② CI 自动化 CI Automation</span><span class="arrow">→</span>
+  <span class="step">③ 人工评审 Human Review</span><span class="arrow">→</span>
+  <span class="step">④ 修订 Revise</span><span class="arrow">→</span>
+  <span class="step">⑤ 批准 Approve</span><span class="arrow">→</span>
+  <span class="step">⑥ 合并 Merge</span>
+</div>
+
+<h4>① 自审阶段（作者） / Self-Review</h4>
+<ul>
+  <li>在请求评审前，作者须先以审查者视角通读自己的 diff。</li>
+  <li>运行 <code>make all</code>（lint + test + build）确保本地通过。</li>
+  <li>检查 PR 是否只包含相关变更，无调试代码、无 <code>fmt.Println</code>、无 commented-out 代码。</li>
+  <li>填写 PR 描述模板（见下）。</li>
+</ul>
+
+<h4>② CI 自动化阶段 / CI Automation</h4>
+<p>人工评审前，CI 流水线（<code>.github/workflows/ci.yml</code>）须全绿：</p>
+<table>
+  <thead><tr><th>阶段 / Stage</th><th>工具 / Tool</th><th>阻断条件 / Blocker</th></tr></thead>
+  <tbody>
+    <tr><td>变更检测</td><td><code>dorny/paths-filter</code></td><td>—（仅决定后续矩阵）</td></tr>
+    <tr><td>Lint</td><td><code>golangci-lint</code></td><td>任何 warning 即阻断</td></tr>
+    <tr><td>Test</td><td><code>go test -race -cover</code></td><td>测试失败或竞态检测触发即阻断</td></tr>
+    <tr><td>Build</td><td><code>CGO_ENABLED=0 go build</code></td><td>编译失败即阻断</td></tr>
+    <tr><td>Docker</td><td>多阶段构建</td><td>仅 <code>main</code> 分支构建镜像</td></tr>
+  </tbody>
+</table>
+
+<h4>③ 人工评审阶段 / Human Review</h4>
+<ul>
+  <li>审查者应在 SLA 内（见下）完成首轮评审。</li>
+  <li>按维度逐一过审：先看 <a href="#security">安全</a> 与 <a href="#arch">架构</a>（阻断级），再看 <a href="#go">Go 规范</a>、<a href="#perf">性能</a>、<a href="#test">测试</a>，最后看 <a href="#deploy">部署</a>。</li>
+  <li>大 PR（&gt;600 行）建议拆分；无法拆分时评审者可要求作者提供 walkthrough。</li>
+</ul>
+
+<h4>④ 修订与再评审 / Revise &amp; Re-review</h4>
+<ul>
+  <li>作者针对每条评论回复「已修复 / 不同意（说明理由） / 待讨论」。</li>
+  <li>不同意的评论需展开讨论，必要时拉模块负责人裁决。</li>
+  <li>修订后审查者只需复审变更部分，无需全量重审。</li>
+</ul>
+
+<h4>⑤ 批准与合并 / Approve &amp; Merge</h4>
+<ul>
+  <li>所有 🔴 Blocker 必须解决或明确豁免（豁免需记录理由）。</li>
+  <li>🟡 Suggestion 建议解决，可创建 follow-up issue 跟踪。</li>
+  <li>合并策略：feature → develop 用 squash；develop → main 用 merge commit（保留历史）。</li>
+  <li>合并后作者负责删除 feature 分支。</li>
+</ul>
+
+<h3>3.2 评审 SLA / Review SLA</h3>
+<div class="slas">
+  <div class="sla"><div class="num">≤ 4h</div><div class="lbl">工作日首轮响应<br>First response (weekday)</div></div>
+  <div class="sla"><div class="num">≤ 1d</div><div class="lbl">小 PR 完成评审<br>Small PR done</div></div>
+  <div class="sla"><div class="num">≤ 2d</div><div class="lbl">大 PR 完成评审<br>Large PR done</div></div>
+  <div class="sla"><div class="num">≤ 1d</div><div class="lbl">修订后再评审<br>Re-review after revise</div></div>
+</div>
+<p class="footnote">紧急修复（hotfix）不受上述 SLA 约束，需即时评审。超过 3 天未响应的 PR，作者可 @ 模块负责人催办或更换审查者。</p>
+
+<h3>3.3 PR 描述模板 / PR Description Template</h3>
+<pre><code><span class="cm">## What / 改了什么</span>
+简述本次变更内容。
+
+<span class="cm">## Why / 为什么改</span>
+业务需求 / Bug 修复 / 重构 / 技术债。关联 issue: #123
+
+<span class="cm">## How / 怎么改的</span>
+- 关键设计决策
+- 涉及的模块：golang-app / golang-commons / ...
+- 是否影响事件契约（是/否）：若为是，说明兼容性
+- 是否涉及数据库迁移（是/否）
+
+<span class="cm">## Testing / 如何测试</span>
+- [ ] 单元测试已补充/更新
+- [ ] <span class="kw">make</span> all 本地通过
+- [ ] <span class="kw">make</span> docker-up 端到端验证
+- [ ] OpenAPI 文档已同步（若涉及 API 变更）
+
+<span class="cm">## Checklist / 自审清单</span>
+- [ ] 无调试代码 / 注释掉的代码
+- [ ] 无硬编码密码 / Token
+- [ ] 新增依赖已评估必要性
+- [ ] 变更已通过 golangci-lint</code></pre>
+
+<!-- ============ 4 ============ -->
+<h2 id="priority">4. 问题优先级分级 <span class="en">Priority Levels</span></h2>
+
+<table>
+  <thead><tr><th>级别</th><th>标识</th><th>含义</th><th>处理要求</th><th>示例</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>阻断 / Blocker</strong></td>
+      <td><span class="badge b-red">🔴 Blocker</span></td>
+      <td>会导致安全问题、数据损坏、架构破坏、API 契约破裂、关键路径缺错误处理</td>
+      <td>必须修复或明确豁免后方可合并</td>
+      <td>SQL 注入、未校验入参、跨层依赖、事件契约不兼容变更</td>
+    </tr>
+    <tr>
+      <td><strong>建议 / Suggestion</strong></td>
+      <td><span class="badge b-amber">🟡 Suggestion</span></td>
+      <td>不影响功能但影响质量：缺测试、命名不清、性能隐患、可抽取的重复代码</td>
+      <td>建议本次修复；确有成本可建 follow-up issue</td>
+      <td>N+1 查询、缺少边界测试、魔法数字未常量化</td>
+    </tr>
+    <tr>
+      <td><strong>建议 / Nit</strong></td>
+      <td><span class="badge b-gray">💭 Nit</span></td>
+      <td>锦上添花的小改进：风格、文档、命名微调</td>
+      <td>可选；作者可决定是否采纳</td>
+      <td>注释补充、变量名更达意、文档错别字</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout amber">
+  <span class="lbl">⚠️ 优先级标注强制要求</span>
+  每条审查评论必须以 <code>🔴</code> / <code>🟡</code> / <code>💭</code> 开头标注优先级。未标注的评论视为 💭 Nit。这样作者能快速判断哪些必须处理，避免在 Nit 上耗费过多精力而漏掉 Blocker。
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="go">5. Go 语言规范 <span class="en">Go Conventions</span></h2>
+
+<h3>5.1 基础规范</h3>
+<table>
+  <thead><tr><th>维度</th><th>要求</th><th>审查要点</th></tr></thead>
+  <tbody>
+    <tr><td>格式化</td><td><code>gofmt</code> + <code>goimports</code></td><td>导入分组：标准库 / 第三方 / 内部（<code>github.com/darrell/golang-system/...</code>）</td></tr>
+    <tr><td>命名</td><td>驼峰；导出用 PascalCase，内部用 camelCase；首字母缩写全大写（<code>ID</code>、<code>URL</code>、<code>HTTP</code>）</td><td>避免 <code>data</code>、<code>info</code>、<code>temp</code> 等无意义名</td></tr>
+    <tr><td>接口</td><td>定义在<strong>使用方</strong>而非实现方；小接口（1-3 方法）</td><td><code>ItemRepository</code> 应定义在 <code>service</code> 包，不在 <code>repository</code> 包</td></tr>
+    <tr><td>错误</td><td>错误是值；<code>if err != nil</code> 及早返回；用 <code>fmt.Errorf("...: %w", err)</code> 包装</td><td>禁止吞错（<code>_ = err</code>）；业务错误用 <code>apperror</code></td></tr>
+    <tr><td>context</td><td>所有 I/O 函数首参为 <code>ctx context.Context</code></td><td>禁止用 <code>context.Background()</code> 替代请求 ctx（除异步任务）</td></tr>
+    <tr><td>注释</td><td>导出函数/类型必须有 godoc 注释，以标识符开头</td><td><code>// NewItemService constructs an itemService.</code></td></tr>
+  </tbody>
+</table>
+
+<h3>5.2 错误处理 — 本项目专项</h3>
+<p>项目已有 <code>golang-commons/apperror</code> 提供结构化错误。审查时确认：</p>
+<ul>
+  <li>业务错误（NotFound/BadInput/Internal/Conflict）走 <code>apperror</code>，而非 <code>errors.New</code>。</li>
+  <li>错误消息对用户友好，不泄漏内部实现（如不直接返回 SQL 错误给客户端）。</li>
+  <li>用 <code>errors.As</code> / <code>errors.Is</code> 解包，而非类型断言。</li>
+</ul>
+
+<div class="compare">
+  <div class="bad">
+    <div class="head">❌ 不推荐</div>
+<pre><code><span class="kw">return</span> <span class="kw">nil</span>, fmt.Errorf(<span class="st">"db error: %v"</span>, err)
+<span class="cm">// 泄漏内部细节，无 HTTP 语义</span></code></pre>
+  </div>
+  <div class="good">
+    <div class="head">✅ 推荐</div>
+<pre><code><span class="kw">return</span> <span class="kw">nil</span>, apperror.Internal(<span class="st">"create item"</span>, err)
+<span class="cm">// 带 HTTP 状态码 + 包装原始错误</span></code></pre>
+  </div>
+</div>
+
+<h3>5.3 并发与 goroutine</h3>
+<ul>
+  <li>启动 goroutine 须明确生命周期管理（<code>context</code> 或 <code>WaitGroup</code>）。</li>
+  <li>禁止在 goroutine 中直接用请求 <code>ctx</code>（请求结束 ctx 即取消），需用 <code>context.WithoutCancel(ctx)</code> 或新建 ctx。</li>
+  <li>闭包捕获循环变量需注意（Go 1.22+ 已修复循环变量语义，但仍建议显式传参）。</li>
+</ul>
+
+<div class="callout red">
+  <span class="lbl">🔴 本项目实例：异步发布事件丢失上下文与错误</span>
+  <code>golang-app/internal/service/item_service.go</code> 中：
+<pre><code><span class="kw">go func</span>() {
+    _ = s.publisher.PublishItemCreated(context.Background(), item)
+}()</code></pre>
+  <strong>问题</strong>：① 用 <code>context.Background()</code> 丢失了请求的 trace/请求ID，无法串联日志；② <code>_ =</code> 静默吞掉发布失败，事件可能丢失而无告警。<br>
+  <strong>建议</strong>：使用带 trace 的新 ctx（<code>context.WithoutCancel(ctx)</code>），并将发布错误记入日志或重试队列。事件丢失在事件驱动架构中是 P0 级问题。
+</div>
+
+<!-- ============ 6 ============ -->
+<h2 id="arch">6. 六边形架构合规 <span class="en">Hexagonal Architecture Compliance</span></h2>
+
+<p>本项目采用<strong>六边形架构（端口与适配器）</strong>。架构合规是 🔴 Blocker 级审查项。核心规则：<strong>依赖方向只能从外向内</strong>。</p>
+
+<h3>6.1 分层与依赖规则</h3>
+<table>
+  <thead><tr><th>层 / Layer</th><th>位置</th><th>可依赖</th><th>禁止依赖</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Domain 领域</strong></td><td><code>internal/domain/</code></td><td>仅标准库</td><td>任何外部包、service、adapter</td></tr>
+    <tr><td><strong>Port 端口（接口）</strong></td><td><code>internal/service/service.go</code></td><td>domain</td><td>adapter 实现、HTTP/DB/NATS 具体 SDK</td></tr>
+    <tr><td><strong>Service 应用</strong></td><td><code>internal/service/*_service.go</code></td><td>domain + port 接口</td><td>具体 adapter 实现、<code>net/http</code>、<code>database/sql</code>、NATS client</td></tr>
+    <tr><td><strong>Adapter 适配器</strong></td><td><code>internal/adapter/</code></td><td>port 接口 + 外部 SDK</td><td>反向依赖 service 内部</td></tr>
+    <tr><td><strong>Port(HTTP) 入口</strong></td><td><code>internal/ports/http/</code></td><td>service 接口</td><td>adapter 实现</td></tr>
+  </tbody>
+</table>
+
+<h3>6.2 架构审查清单</h3>
+<div class="checklist">
+  <ul>
+    <li><code>domain</code> 包零外部依赖（除标准库与极少数纯类型库如 <code>uuid</code>）</li>
+    <li><code>service</code> 通过接口引用 repository/publisher，不直接 import <code>postgres</code> / <code>nats.go</code></li>
+    <li>新增外部依赖（DB/消息队列/缓存）时，先在 service 包定义接口，再在 adapter 实现接口</li>
+    <li>HTTP handler 不直接调用 repository，必须经 service 层</li>
+    <li><code>golang-commons</code> 不依赖任何业务服务模块（依赖方向：app → commons，不可反向）</li>
+    <li>跨服务共享的类型放 <code>golang-events</code>（事件契约）或 <code>golang-commons</code>，不在服务间互相 import</li>
+    <li>组合根（<code>internal/app/app.go</code>）是唯一允许同时知道接口与实现的地方</li>
+  </ul>
+</div>
+
+<div class="callout red">
+  <span class="lbl">🔴 架构违规示例</span>
+  若在 <code>internal/service/item_service.go</code> 中出现 <code>import "github.com/darrell/golang-system/golang-app/internal/adapter/repository"</code>，即为架构破坏——service 层直接耦合了 PostgreSQL 实现，使单元测试无法用 mock 替换。此类 PR 必须打回。
+</div>
+
+<!-- ============ 7 ============ -->
+<h2 id="micro">7. 微服务设计 <span class="en">Microservice Design</span></h2>
+
+<h3>7.1 服务边界与数据所有权</h3>
+<table>
+  <thead><tr><th>原则</th><th>本项目落实</th></tr></thead>
+  <tbody>
+    <tr><td>数据库每服务独立</td><td><code>golang-app</code> 用 <code>app_db</code>（:5432），<code>golang-app2</code> 用 <code>app2_db</code>（:5433），互不直连</td></tr>
+    <tr><td>不共享数据库表</td><td>需对方数据时走 HTTP（同步）或 NATS（异步），禁止跨服务直查 DB</td></tr>
+    <tr><td>服务间无强共享代码</td><td>共享仅限 <code>golang-commons</code>（工具）与 <code>golang-events</code>（契约），不含业务实体</td></tr>
+    <tr><td>同步 vs 异步选择</td><td>需立即结果走 HTTP（如建单时校验 item 存在）；解耦通知走 NATS（如 item 删除触发订单取消）</td></tr>
+  </tbody>
+</table>
+
+<h3>7.2 优雅关闭与韧性</h3>
+<ul>
+  <li>所有服务须实现 graceful shutdown（参考 <code>cmd/server/main.go</code> 模式：捕获 SIGINT/SIGTERM，30s 超时关闭）。</li>
+  <li>HTTP 调用须设超时（<code>httpclient.WithTimeout</code>），默认 30s，跨服务调用建议 10s。</li>
+  <li>NATS 订阅须用 queue group 实现负载均衡，避免多实例重复处理。</li>
+  <li>跨服务调用失败须有降级策略（返回默认值 / 快速失败 / 重试），不能让一个服务拖垮整个链路。</li>
+</ul>
+
+<div class="callout amber">
+  <span class="lbl">🟡 超时硬编码可读性</span>
+  <code>golang-app2/internal/client/item_client.go</code>：<code>httpclient.WithTimeout(10*1_000_000_000)</code> 用纳秒字面量表示 10 秒，可读性差。建议改用 <code>httpclient.WithTimeout(10 * time.Second)</code>，意图一目了然。
+</div>
+
+<!-- ============ 8 ============ -->
+<h2 id="security">8. 安全审查 <span class="en">Security Review</span></h2>
+
+<p>安全问题是 🔴 Blocker，零容忍。所有 PR 须过以下安全清单。</p>
+
+<h3>8.1 安全审查清单</h3>
+<div class="checklist">
+  <ul>
+    <li><strong>输入校验</strong>：所有外部输入（HTTP 参数、事件 payload）须校验类型、长度、格式</li>
+    <li><strong>SQL 注入</strong>：必须用参数化查询（<code>db.QueryContext</code> + <code>$1</code> 占位符），禁止字符串拼接 SQL</li>
+    <li><strong>路径穿越</strong>：URL 拼接用户输入须转义（<code>url.PathEscape(id)</code>）</li>
+    <li><strong>认证授权</strong>：受保护接口须经过 <code>AuthContextMiddleware</code>，校验 <code>X-User-ID</code> / <code>X-Organization-ID</code></li>
+    <li><strong>敏感信息</strong>：密码、Token、密钥不得硬编码、不得入日志、不得入错误响应</li>
+    <li><strong>密钥管理</strong>：生产密钥走 Vault / K8s Secret，不写进 <code>values.yaml</code> 明文</li>
+    <li><strong>依赖安全</strong>：新增 Go 依赖须检查已知 CVE（<code>govulncheck</code>）</li>
+    <li><strong>日志脱敏</strong>：日志中不打印完整请求体（含个人信息）、不打印密码字段</li>
+    <li><strong>限流</strong>：公开 API 须配置限流（Istio EnvoyFilter 或中间件）</li>
+    <li><strong>CORS</strong>：生产环境严格配置允许的 Origin，禁止 <code>*</code></li>
+  </ul>
+</div>
+
+<div class="callout red">
+  <span class="lbl">🔴 本项目实例：URL 路径未转义</span>
+  <code>golang-app2/internal/client/item_client.go</code> 的 <code>GetByID</code>：<code>c.c.Get(ctx, "/rest/v1/items/"+id, &amp;item)</code>。<br>
+  若 <code>id</code> 含特殊字符（如 <code>../</code> 或空格），可能导致路径穿越或请求异常。虽 item ID 由 UUID 生成，但作为防御性编程应使用 <code>url.PathEscape(id)</code>。审查时应要求补充转义。
+</div>
+
+<h3>8.2 密钥与配置</h3>
+<table>
+  <thead><tr><th>场景</th><th>开发环境</th><th>生产环境</th></tr></thead>
+  <tbody>
+    <tr><td>DB 密码</td><td>docker-compose 明文（<code>app_password</code>）</td><td>Vault / K8s Secret + Helm <code>--set</code> 注入</td></tr>
+    <tr><td>NATS 凭证</td><td>无认证</td><td>NATS Nkey / JWT，TLS 加密连接</td></tr>
+    <tr><td>TLS 证书</td><td>自签 / cert-manager staging</td><td>cert-manager + Let's Encrypt prod</td></tr>
+    <tr><td>API Token</td><td>环境变量</td><td>外部 Secret 管理，不进镜像</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 9 ============ -->
+<h2 id="perf">9. 性能审查 <span class="en">Performance Review</span></h2>
+
+<h3>9.1 性能审查要点</h3>
+<table>
+  <thead><tr><th>类别</th><th>检查项</th><th>级别</th></tr></thead>
+  <tbody>
+    <tr><td>数据库</td><td>N+1 查询（循环内查 DB）；缺索引；SELECT * 滥用；缺分页</td><td>🟡 / 🔴（若致生产事故）</td></tr>
+    <tr><td>内存</td><td>大 slice 未预分配（<code>make([]T, 0, n)</code>）；不必要的数据拷贝</td><td>🟡</td></tr>
+    <tr><td>并发</td><td>可并发的独立 I/O 串行执行（应用 <code>errgroup</code>）</td><td>🟡</td></tr>
+    <tr><td>连接池</td><td>DB 连接池参数（<code>MaxOpenConns</code> / <code>MaxIdleConns</code>）合理设置</td><td>🟡</td></tr>
+    <tr><td>缓存</td><td>高频读且少变的数据未缓存；缓存未设过期/失效策略</td><td>🟡</td></tr>
+    <tr><td>序列化</td><td>热路径上反复 <code>json.Marshal</code>；可用 <code>sync.Pool</code> 复用 buffer</td><td>💭</td></tr>
+  </tbody>
+</table>
+
+<h3>9.2 分页规范</h3>
+<p><code>ListItems</code> 已对 limit 做了边界保护（&gt;100 时回退为 20），这是好的实践。审查时确认：</p>
+<ul>
+  <li>所有列表接口都有 limit 上限，防止恶意拉全表。</li>
+  <li>offset 分页在深翻页时性能差（大表考虑游标分页）。</li>
+</ul>
+
+<div class="compare">
+  <div class="bad">
+    <div class="head">❌ 静默修正入参</div>
+<pre><code><span class="kw">if</span> limit &lt;= <span class="ty">0</span> || limit &gt; <span class="ty">100</span> {
+    limit = <span class="ty">20</span>
+}</code></pre>
+    <p class="footnote">调用方传错值被静默改成 20，可能掩盖 bug。</p>
+  </div>
+  <div class="good">
+    <div class="head">✅ 显式校验返回错误（更推荐）</div>
+<pre><code><span class="kw">if</span> limit &lt; <span class="ty">0</span> || limit &gt; <span class="ty">100</span> {
+    <span class="kw">return</span> <span class="kw">nil</span>, <span class="ty">0</span>, apperror.NewBadInput(
+        <span class="st">"limit must be 1..100"</span>)
+}</code></pre>
+    <p class="footnote">快速失败，调用方立即知道参数错了。</p>
+  </div>
+</div>
+
+<!-- ============ 10 ============ -->
+<h2 id="test">10. 测试审查 <span class="en">Testing Review</span></h2>
+
+<h3>10.1 测试要求</h3>
+<table>
+  <thead><tr><th>测试类型</th><th>覆盖范围</th><th>强制级别</th></tr></thead>
+  <tbody>
+    <tr><td>单元测试</td><td>service 层业务逻辑（用 mock 替换 port）</td><td>🔴 必须，覆盖率 ≥ 70%</td></tr>
+    <tr><td>适配器测试</td><td>repository / messaging 实现</td><td>🟡 建议，可用 testcontainers</td></tr>
+    <tr><td>集成测试</td><td>HTTP handler + service + 真 DB</td><td>🟡 关键路径须覆盖</td></tr>
+    <tr><td>契约测试</td><td>NATS 事件 payload 兼容性</td><td>🔴 事件结构变更时必须</td></tr>
+    <tr><td>竞态检测</td><td>所有测试 <code>-race</code> 通过</td><td>🔴 CI 强制</td></tr>
+  </tbody>
+</table>
+
+<h3>10.2 测试规范</h3>
+<ul>
+  <li>测试文件与被测文件同包，命名 <code>_test.go</code>（如 <code>item_service_test.go</code>）。</li>
+  <li>测试函数命名 <code>Test<类型>_<场景></code>，如 <code>TestCreateItem_ValidationError</code>。</li>
+  <li>用 table-driven test 覆盖多场景。</li>
+  <li>mock 用接口实现（项目已用 <code>NoopPublisher</code> 等模式），避免引入重型 mock 框架。</li>
+  <li>断言用标准库或轻量库（如 <code>testify/assert</code>），不引入 BDD 框架。</li>
+  <li>每个 Bug 修复须附带回归测试。</li>
+</ul>
+
+<div class="callout green">
+  <span class="lbl">🌟 值得推广的实践</span>
+  <code>golang-app/internal/service/item_service_test.go</code> 已为 service 层编写带 mock 的单元测试，这是本项目的良好基线。新 service 方法提交时，须同步补充对应测试。
+</div>
+
+<!-- ============ 11 ============ -->
+<h2 id="obs">11. 可观测性 <span class="en">Observability</span></h2>
+
+<h3>11.1 结构化日志</h3>
+<ul>
+  <li>统一用 <code>golang-commons/logger</code>（Zerolog），DEV 彩色控制台 / PROD JSON。</li>
+  <li>日志须带上下文字段：<code>request_id</code>、<code>user_id</code>、<code>entity_id</code> 等。</li>
+  <li>日志级别规范：<code>Error</code> 需人工介入；<code>Warn</code> 异常但可自愈；<code>Info</code> 关键业务事件；<code>Debug</code> 调试细节。</li>
+  <li>禁止用 <code>fmt.Println</code> / <code>log.Printf</code>（绕过结构化日志）。</li>
+</ul>
+
+<h3>11.2 可观测性三件套</h3>
+<table>
+  <thead><tr><th>维度</th><th>实现</th><th>审查要点</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Metrics</strong></td><td>Prometheus 指标（建议补充）</td><td>关键业务指标（订单数、事件发布/消费数）、RED 指标（Rate/Error/Duration）</td></tr>
+    <tr><td><strong>Tracing</strong></td><td>Istio + Jaeger</td><td>跨服务调用 trace 串联；<code>X-Request-ID</code> 透传（httpclient 已实现）</td></tr>
+    <tr><td><strong>Health</strong></td><td><code>/admin/health/liveness</code> + <code>/readiness</code></td><td>readiness 须检查 DB 连接；新增关键依赖须加入 readiness</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 12 ============ -->
+<h2 id="db">12. 数据库与迁移 <span class="en">Database &amp; Migrations</span></h2>
+
+<h3>12.1 迁移规范</h3>
+<ul>
+  <li>用 <code>golang-migrate</code>，文件放 <code>db/migrations/</code>，命名 <code>NNNNNN_description.up.sql</code> / <code>.down.sql</code>。</li>
+  <li>每个迁移必须有对应的 down 迁移（除极少数不可逆操作，须注释说明）。</li>
+  <li><strong>大表 DDL 须考虑在线执行</strong>：避免 <code>ALTER TABLE</code> 锁表，必要时分步迁移（加列 → 回填 → 切换 → 删旧列）。</li>
+  <li>迁移与代码变更同 PR 提交，确保代码与 schema 同步。</li>
+  <li>破坏性迁移（删列、改类型）须分两次发布：先发兼容代码，再发迁移。</li>
+</ul>
+
+<h3>12.2 SQL 审查</h3>
+<div class="checklist">
+  <ul>
+    <li>所有查询用参数化（<code>$1</code>、<code>$2</code>），禁止 <code>fmt.Sprintf</code> 拼 SQL</li>
+    <li>WHERE 条件字段须有索引（尤其外键、状态字段）</li>
+    <li>UPDATE / DELETE 必须带 WHERE，禁止全表操作</li>
+    <li>事务边界合理：跨多表写操作须在事务内</li>
+    <li>查询字段明确列出，避免 <code>SELECT *</code>（schema 变更易致问题）</li>
+    <li>时间字段统一 UTC（<code>time.Now().UTC()</code>，项目已遵循）</li>
+  </ul>
+</div>
+
+<!-- ============ 13 ============ -->
+<h2 id="events">13. 事件驱动消息 <span class="en">Event-Driven Messaging</span></h2>
+
+<p>事件契约是跨服务的<strong>公共 API</strong>，变更须像改 HTTP API 一样谨慎。</p>
+
+<h3>13.1 事件契约规范</h3>
+<table>
+  <thead><tr><th>规则</th><th>说明</th><th>级别</th></tr></thead>
+  <tbody>
+    <tr><td>事件定义集中管理</td><td>所有事件结构在 <code>golang-events/events.go</code> 定义</td><td>🔴</td></tr>
+    <tr><td>向后兼容</td><td>新增字段可选；删字段/改类型需版本化（<code>item.created.v2</code>）</td><td>🔴</td></tr>
+    <tr><td>Subject 命名</td><td><code>&lt;entity&gt;.&lt;action&gt;</code>，如 <code>item.created</code>、<code>order.canceled</code></td><td>🟡</td></tr>
+    <tr><td>事件须带 ID + 时间戳</td><td>用 <code>Event[T]</code> 信封，保证幂等与排序</td><td>🔴</td></tr>
+    <tr><td>消费者须幂等</td><td>NATS 可能重投，handler 须能重复处理同一事件</td><td>🔴</td></tr>
+    <tr><td>Queue Group 必配</td><td>多实例时用 queue group 避免重复消费</td><td>🔴</td></tr>
+  </tbody>
+</table>
+
+<h3>13.2 发布与消费审查</h3>
+<ul>
+  <li><strong>发布可靠性</strong>：事务内写 DB、事务后发事件（transactional outbox 模式）；或至少保证发布失败可观测、可重试。</li>
+  <li><strong>消费错误处理</strong>：handler 失败须有重试 + 死信队列，不能静默丢弃。</li>
+  <li><strong>消费顺序</strong>：若业务依赖顺序，须用 JetStream 消费者分区，不能依赖 Pub/Sub 默认顺序。</li>
+</ul>
+
+<div class="callout red">
+  <span class="lbl">🔴 事件契约变更审查流程</span>
+  任何对 <code>golang-events/events.go</code> 的修改须经「架构守门人」评审，且：
+  <ol style="margin:6px 0 0;">
+    <li>评估对所有订阅方的影响（搜索全部 <code>Subscribe</code> 调用点）</li>
+    <li>不兼容变更须协调所有消费方同步升级，或采用版本化 subject 过渡</li>
+    <li>更新 OpenAPI / 事件文档</li>
+  </ol>
+</div>
+
+<!-- ============ 14 ============ -->
+<h2 id="api">14. API 设计 <span class="en">API Design</span></h2>
+
+<h3>14.1 REST API 规范</h3>
+<table>
+  <thead><tr><th>规则</th><th>本项目示例</th></tr></thead>
+  <tbody>
+    <tr><td>路径版本化</td><td><code>/rest/v1/items</code> — 路径含版本号</td></tr>
+    <tr><td>资源用复数名词</td><td><code>/items</code>、<code>/orders</code></td></tr>
+    <tr><td>HTTP 语义正确</td><td>GET 查、POST 增、PATCH 改、DELETE 删</td></tr>
+    <tr><td>统一响应结构</td><td>成功返资源对象；错误走 <code>httputil.Error()</code> 返 <code>{"message":"..."}</code></td></tr>
+    <tr><td>分页参数</td><td><code>?limit=&amp;offset=</code>，响应含 <code>total</code></td></tr>
+    <tr><td>状态码规范</td><td>201 Created / 204 NoContent / 400 BadInput / 404 NotFound / 409 Conflict / 500 Internal</td></tr>
+  </tbody>
+</table>
+
+<h3>14.2 OpenAPI 文档</h3>
+<ul>
+  <li>API 变更须同步更新 <code>api/openapi.yaml</code>。</li>
+  <li>新增端点须有请求/响应 schema、错误响应、示例。</li>
+  <li>建议在 CI 中加入 <code>spectral</code> 校验 OpenAPI 规范。</li>
+</ul>
+
+<h3>14.3 请求头透传</h3>
+<p><code>httpclient</code> 已实现 <code>X-Request-ID</code>、<code>X-Organization-ID</code>、<code>X-User-ID</code> 自动透传。新增跨服务调用须复用此 client，不得另起 <code>http.Client</code> 丢失上下文。</p>
+
+<!-- ============ 15 ============ -->
+<h2 id="deploy">15. 部署配置审查 <span class="en">Deployment: Helm / Istio / Docker</span></h2>
+
+<h3>15.1 Dockerfile</h3>
+<div class="checklist">
+  <ul>
+    <li>多阶段构建：builder 阶段编译，runtime 阶段用最小镜像（<code>alpine</code> / <code>scratch</code> / <code>distroless</code>）</li>
+    <li><code>CGO_ENABLED=0</code> 静态编译（项目 Makefile 已遵循）</li>
+    <li>非 root 用户运行（<code>USER appuser</code>）</li>
+    <li>基础镜像用具体版本 tag，禁止 <code>latest</code></li>
+    <li>合理利用层缓存：先 COPY go.mod 再 COPY 源码</li>
+    <li>镜像须带 <code>LABEL</code>（version、maintainer、source）</li>
+  </ul>
+</div>
+
+<h3>15.2 Helm Chart</h3>
+<table>
+  <thead><tr><th>检查项</th><th>级别</th></tr></thead>
+  <tbody>
+    <tr><td><code>values.yaml</code> 无硬编码密钥（用 <code>existingSecret</code> 引用）</td><td>🔴</td></tr>
+    <tr><td>资源配置（requests/limits）必填</td><td>🔴</td></tr>
+    <tr><td>livenessProbe / readinessProbe 配置正确</td><td>🔴</td></tr>
+    <tr><td>HPA 配置（生产环境）</td><td>🟡</td></tr>
+    <tr><td>PodDisruptionBudget 保证最少可用副本</td><td>🟡</td></tr>
+    <tr><td>NetworkPolicy 限制跨命名空间访问</td><td>🟡</td></tr>
+    <tr><td>values 可按环境覆盖（dev/staging/prod）</td><td>🟡</td></tr>
+    <tr><td><code>helm template</code> 渲染无报错（<code>make helm-template</code>）</td><td>🔴</td></tr>
+  </tbody>
+</table>
+
+<h3>15.3 Istio 服务网格</h3>
+<div class="checklist">
+  <ul>
+    <li>Gateway 的 host 与实际域名一致，TLS 证书 credentialName 正确</li>
+    <li>VirtualService 路由规则与后端 Service 匹配</li>
+    <li>DestinationRule 熔断阈值（连接数、并发请求数、异常实例驱逐）合理</li>
+    <li>EnvoyFilter 限流配置不误伤内部健康检查</li>
+    <li>生产环境启用 mTLS（<code>ISTIO_MUTUAL</code>）</li>
+    <li>Istio 配置变更须在 staging 验证后再上 prod</li>
+  </ul>
+</div>
+
+<div class="callout amber">
+  <span class="lbl">🟡 Istio 配置评审要点</span>
+  <code>istio-config/gateway.yaml</code> 中 TLS 用 <code>SIMPLE</code> 模式，生产建议升级为 <code>MUTUAL</code>（mTLS）保护东西向流量。熔断（<code>destination-rule-circuit-breaking.yaml</code>）的阈值需结合压测数据设定，不能拍脑袋填数字。
+</div>
+
+<!-- ============ 16 ============ -->
+<h2 id="checklist">16. 合并前审查清单 <span class="en">Pre-Merge Checklist</span></h2>
+
+<p>审查者完成评审后，对照本清单确认全部通过方可 Approve：</p>
+
+<div class="grid2">
+  <div class="card">
+    <h4>🔴 必须通过 / Must Pass</h4>
+    <div class="checklist">
+      <ul>
+        <li>CI 全绿（lint + test + build）</li>
+        <li>无安全漏洞（注入、越权、敏感信息泄露）</li>
+        <li>架构边界未破坏（依赖方向正确）</li>
+        <li>事件契约变更向后兼容（或已协调升级）</li>
+        <li>关键路径有单元测试且通过</li>
+        <li>SQL 全部参数化，无注入风险</li>
+        <li>错误处理完整，无静默吞错</li>
+        <li>无硬编码密钥/密码</li>
+        <li>DB 迁移有 up + down</li>
+        <li>graceful shutdown 逻辑未破坏</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <h4>🟡 强烈建议 / Strongly Recommended</h4>
+    <div class="checklist">
+      <ul>
+        <li>覆盖率不下降（与基线对比）</li>
+        <li>新增依赖经评估且无已知 CVE</li>
+        <li>OpenAPI 文档已同步</li>
+        <li>关键日志带 request_id 等上下文</li>
+        <li>跨服务调用设了合理超时</li>
+        <li>新接口配了限流</li>
+        <li>Helm values 资源配额已设</li>
+        <li>readiness 包含新依赖的健康检查</li>
+        <li>PR 描述完整，关联 issue</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 17 ============ -->
+<h2 id="comments">17. 评论格式与礼仪 <span class="en">Comment Format &amp; Etiquette</span></h2>
+
+<h3>17.1 评论模板</h3>
+<pre><code><span class="cm">🔴 [类型] 简短标题</span>
+第 N 行：<span class="kw">具体指出问题位置与内容</span>。
+
+<strong>Why</strong>：<span class="kw">解释为什么这是问题，会带来什么后果</span>。
+
+<strong>Suggestion</strong>：
+- <span class="kw">给出可操作的建议，最好附代码示例</span>
+
+<pre><code><span class="cm">// 推荐写法</span>
+<span class="kw">func</span> <span class="fn">CreateItem</span>(ctx context.Context, req *domain.CreateItemRequest) (*domain.Item, <span class="ty">error</span>) {
+    <span class="kw">if</span> req.Name == <span class="st">""</span> {
+        <span class="kw">return</span> <span class="kw">nil</span>, apperror.NewBadInput(<span class="st">"name is required"</span>)
+    }
+    ...
+}</code></pre></code></pre>
+
+<h3>17.2 礼仪规范</h3>
+<div class="grid2">
+  <div class="card">
+    <h4>✅ 应该 / Do</h4>
+    <ul>
+      <li>对事不对人，用「这段代码」而非「你」</li>
+      <li>不确定时提问而非断言：「这里是否考虑了 X 情况？」</li>
+      <li>表扬好代码：「这个 table-driven test 写得很清晰 👍」</li>
+      <li>给出可执行的建议，不只指出问题</li>
+      <li>大段建议用代码示例说明</li>
+      <li>及时响应，尊重作者时间</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>🚫 不应该 / Don't</h4>
+    <ul>
+      <li>用「明显」「显然」等居高临下措辞</li>
+      <li>堆砌多条评论却不分级，让作者抓不到重点</li>
+      <li>纠结个人偏好（命名审美、注释多寡）</li>
+      <li>在已解决的评论下反复追加</li>
+      <li>把架构讨论塞进单个 PR 评论（应单开 RFC）</li>
+      <li>沉默数天不响应</li>
+    </ul>
+  </div>
+</div>
+
+<h3>17.3 评论示例对比</h3>
+<div class="compare">
+  <div class="bad">
+    <div class="head">❌ 无效评论</div>
+<pre><code>这里有问题，改一下。
+性能不好。
+代码不优雅。
+建议重构。</code></pre>
+    <p class="footnote">无优先级、无定位、无原因、无可执行建议。</p>
+  </div>
+  <div class="good">
+    <div class="head">✅ 有效评论</div>
+<pre><code>🟡 [性能] 循环内查 DB 致 N+1
+第 58 行：<span class="kw">for</span> 循环内调用 s.repo.GetByID。
+
+Why：若 items 有 100 条，会触发 101 次
+SQL 查询，列表接口延迟会随数据量线性恶化。
+
+Suggestion：
+- 用 s.repo.ListByIDs(ctx, ids) 一次查回
+- 或预加载后用 map 索引</code></pre>
+    <p class="footnote">有级别、定位、原因、可执行方案。</p>
+  </div>
+</div>
+
+<!-- ============ 18 ============ -->
+<h2 id="antipatterns">18. 常见反模式 <span class="en">Common Anti-Patterns (Project-Specific)</span></h2>
+
+<p>以下反模式基于本项目代码库梳理，审查时重点关注。</p>
+
+<table>
+  <thead><tr><th>#</th><th>反模式</th><th>出现位置</th><th>级别</th><th>正确做法</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>异步 goroutine 用 <code>context.Background()</code> 丢失 trace</td><td><code>item_service.go</code> 多处 <code>go func(){ _ = publisher.X(context.Background(), ...) }</code></td><td>🔴</td><td>用 <code>context.WithoutCancel(ctx)</code> 继承 trace 值</td></tr>
+    <tr><td>2</td><td>静默吞掉事件发布错误 <code>_ =</code></td><td><code>item_service.go</code> 发布事件处</td><td>🔴</td><td>记日志 + 重试 / outbox 模式</td></tr>
+    <tr><td>3</td><td>URL 拼接用户输入未转义</td><td><code>item_client.go</code> <code>"/rest/v1/items/"+id</code></td><td>🔴</td><td><code>url.PathEscape(id)</code></td></tr>
+    <tr><td>4</td><td>纳秒字面量表示时长</td><td><code>item_client.go</code> <code>10*1_000_000_000</code></td><td>🟡</td><td><code>10 * time.Second</code></td></tr>
+    <tr><td>5</td><td>静默修正非法入参而非报错</td><td><code>item_service.go</code> ListItems 的 limit/offset</td><td>🟡</td><td>返回 <code>apperror.NewBadInput</code></td></tr>
+    <tr><td>6</td><td>service 层 import adapter 包</td><td>（架构违规，须严防）</td><td>🔴</td><td>只依赖 port 接口</td></tr>
+    <tr><td>7</td><td>HTTP handler 直连 repository</td><td>（架构违规，须严防）</td><td>🔴</td><td>经 service 层</td></tr>
+    <tr><td>8</td><td>跨服务直连对方数据库</td><td>（微服务反模式）</td><td>🔴</td><td>走 HTTP / NATS</td></tr>
+    <tr><td>9</td><td>事件 payload 字段直接删除/改名</td><td><code>golang-events</code> 修改时</td><td>🔴</td><td>版本化 subject 或字段只增不删</td></tr>
+    <tr><td>10</td><td>NATS 消费未配 queue group</td><td>新增 subscriber 时</td><td>🔴</td><td>必配 queue group</td></tr>
+    <tr><td>11</td><td>用 <code>fmt.Println</code> / <code>log.Printf</code></td><td>调试残留</td><td>🟡</td><td>统一用 zerolog</td></tr>
+    <tr><td>12</td><td><code>values.yaml</code> 写明文密码</td><td>Helm 配置</td><td>🔴</td><td><code>existingSecret</code> 引用</td></tr>
+  </tbody>
+</table>
+
+<!-- ============ 19 ============ -->
+<h2 id="automation">19. 自动化工具链 <span class="en">Automation Tooling</span></h2>
+
+<p>能自动化的不要靠人眼。以下工具已接入或建议接入 CI，人工评审聚焦自动化无法覆盖的部分。</p>
+
+<table>
+  <thead><tr><th>工具</th><th>用途</th><th>状态</th><th>建议</th></tr></thead>
+  <tbody>
+    <tr><td><code>gofmt</code> / <code>goimports</code></td><td>格式化</td><td>✅ 已用</td><td>—</td></tr>
+    <tr><td><code>golangci-lint</code></td><td>静态分析（多 linter 聚合）</td><td>✅ 已用</td><td>建议启用 <code>errcheck</code>、<code>govet</code>、<code>staticcheck</code>、<code>gosec</code>、<code>revive</code></td></tr>
+    <tr><td><code>go test -race</code></td><td>竞态检测</td><td>✅ 已用</td><td>—</td></tr>
+    <tr><td><code>govulncheck</code></td><td>依赖漏洞扫描</td><td>⬜ 未接入</td><td>建议加入 CI，定期扫描</td></tr>
+    <tr><td>Spectral</td><td>OpenAPI 规范校验</td><td>⬜ 未接入</td><td>API 变更时校验 <code>openapi.yaml</code></td></tr>
+    <tr><td>Trivy</td><td>容器镜像漏洞扫描</td><td>⬜ 未接入</td><td>Docker 构建后扫描</td></tr>
+    <tr><td>Dependabot</td><td>依赖自动更新</td><td>✅ 已用</td><td>—</td></tr>
+    <tr><td>CodeQL</td><td>语义级安全分析</td><td>⬜ 未接入</td><td>可选，GitHub 原生</td></tr>
+  </tbody>
+</table>
+
+<div class="callout blue">
+  <span class="lbl">💡 分工原则</span>
+  Linter 能查的（未用变量、err 未检查、shadow 变量）交给 linter；人审聚焦：业务逻辑正确性、架构边界、安全语义、命名达意、测试有效性——这些是机器查不出的。
+</div>
+
+<!-- ============ 20 ============ -->
+<h2 id="metrics">20. 度量与持续改进 <span class="en">Metrics &amp; Continuous Improvement</span></h2>
+
+<h3>20.1 审查质量度量</h3>
+<table>
+  <thead><tr><th>指标</th><th>目标</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>PR 首轮响应时间</td><td>≤ 4h（工作日）</td><td>衡量团队响应力</td></tr>
+    <tr><td>PR 平均评审轮次</td><td>≤ 2 轮</td><td>过多说明自审不足或标准不清</td></tr>
+    <tr><td>CI 阻断率</td><td>↓ 持续下降</td><td>能在 CI 发现的别留到人审</td></tr>
+    <tr><td>线上问题逃逸率</td><td>↓ 持续下降</td><td>审查漏掉的问题数 / 总问题数</td></tr>
+    <tr><td>测试覆盖率</td><td>≥ 70% 且不下降</td><td>service 层核心逻辑</td></tr>
+  </tbody>
+</table>
+
+<h3>20.2 标准本身的演进</h3>
+<ul>
+  <li>本标准是活文档，每季度 review 一次，根据线上事故、新技术引入更新。</li>
+  <li>每次线上事故须补充对应的审查条款（「补漏」），避免同类问题再现。</li>
+  <li>新增工具/框架（如引入 Redis 缓存）时，同步增加该维度的审查清单。</li>
+  <li>鼓励团队在 retro 中反馈标准是否过严或过松，动态调整。</li>
+</ul>
+
+<div class="callout green">
+  <span class="lbl">🎯 一句话总结</span>
+  好的代码审查标准 = <strong>明确的优先级</strong> + <strong>可执行的清单</strong> + <strong>贴合项目的真实案例</strong> + <strong>持续演进的文化</strong>。愿本标准让 golang-system 在迭代中越走越稳。
+</div>
+
+<hr style="margin:40px 0 20px;border:none;border-top:1px solid var(--border);">
+<p class="footnote">
+  📄 文档版本 v1.0 · 适用仓库 <code>golang-system</code> · 维护：代码审查专家「火眼眼」<br>
+  最后更新：2026-07-02 · 反馈与建议欢迎在团队内讨论
+</p>
+
+</div>
+</body>
+</html>

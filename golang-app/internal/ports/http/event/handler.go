@@ -38,6 +38,8 @@ func (h *ItemHandler) Routes(r chi.Router) {
 
 func (h *ItemHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateItemRequest
+	// Limit request body to 1 MiB to mitigate oversized-body DoS attempts.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.Error(w, err)
 		return
@@ -73,6 +75,8 @@ func (h *ItemHandler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *ItemHandler) update(w http.ResponseWriter, r *http.Request) {
 	var req domain.UpdateItemRequest
+	// Limit request body to 1 MiB to mitigate oversized-body DoS attempts.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.Error(w, err)
 		return
