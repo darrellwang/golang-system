@@ -50,6 +50,10 @@ func NewUnavailable(message string) *AppError {
 	return &AppError{Code: http.StatusServiceUnavailable, Message: message}
 }
 
+func NewUnauthorized(message string) *AppError {
+	return &AppError{Code: http.StatusUnauthorized, Message: message}
+}
+
 // NotFound / BadInput / Internal / Conflict with wrapped cause
 func NotFound(message string, err error) *AppError {
 	return &AppError{Code: http.StatusNotFound, Message: message, Err: err}
@@ -73,6 +77,10 @@ func BadGateway(message string, err error) *AppError {
 
 func Unavailable(message string, err error) *AppError {
 	return &AppError{Code: http.StatusServiceUnavailable, Message: message, Err: err}
+}
+
+func Unauthorized(message string, err error) *AppError {
+	return &AppError{Code: http.StatusUnauthorized, Message: message, Err: err}
 }
 
 // IsAppError extracts *AppError from an error chain.

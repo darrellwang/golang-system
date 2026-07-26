@@ -99,9 +99,17 @@ configure_service_governance() {
     log_info "应用 PeerAuthentication..."
     kubectl apply -f istio-config/peer-authentication.yaml
 
-    # 应用限流配置
-    log_info "应用限流配置..."
+    # 应用限流配置（本地 + 全局 Redis/ratelimit）
+    log_info "应用本地限流..."
     kubectl apply -f istio-config/envoy-filter-rate-limiting.yaml
+    log_info "应用全局限流 (Redis + ratelimit)..."
+    kubectl apply -f istio-config/global-rate-limiting.yaml
+    kubectl rollout status deployment/redis -n istio-system --timeout=2m || log_warn "redis 未就绪"
+    kubectl rollout status deployment/ratelimit -n istio-system --timeout=2m || log_warn "ratelimit 未就绪"
+
+    # JWT 网关鉴权
+    log_info "应用 Gateway JWT 鉴权..."
+    kubectl apply -f istio-config/jwt-authentication.yaml
     
     # 配置 API 网关
     log_info "配置 API 网关..."
@@ -158,6 +166,9 @@ verify_deployment() {
     # 检查 Istio 配置
     log_info "检查 Istio 配置..."
     kubectl get gateway,virtualservice,destinationrule,envoyfilter -n default
+    kubectl get requestauthentication,authorizationpolicy -n istio-system
+    kubectl get envoyfilter -n istio-system
+    kubectl get deploy,svc -n istio-system -l 'app in (redis,ratelimit)'
     
     # 获取 Ingress Gateway IP
     log_info "获取 Ingress Gateway 外部访问地址..."

@@ -197,10 +197,19 @@ func propagateHeaders(ctx context.Context, req *http.Request) {
 		req.Header.Set(HeaderRequestID, id)
 	}
 	if id := httputil.GetUserID(ctx); id != "" {
+		// Prefer JWT claim header for downstream AuthContextMiddleware.
+		req.Header.Set("x-jwt-sub", id)
 		req.Header.Set(HeaderUserID, id)
 	}
 	if id := httputil.GetOrganizationID(ctx); id != "" {
+		req.Header.Set("x-jwt-org", id)
 		req.Header.Set(HeaderOrganizationID, id)
+	}
+	if email := httputil.GetUserEmail(ctx); email != "" {
+		req.Header.Set("x-jwt-email", email)
+	}
+	if auth := httputil.GetAuthorization(ctx); auth != "" {
+		req.Header.Set("Authorization", auth)
 	}
 	if tp, ok := ctx.Value(httputil.CtxTraceParent).(string); ok && tp != "" {
 		req.Header.Set(HeaderTraceParent, tp)

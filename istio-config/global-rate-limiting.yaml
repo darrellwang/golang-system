@@ -1,0 +1,263 @@
+# ============================================
+# Global rate limiting via Envoy ratelimit + Redis
+# Applied at the ingress gateway (cluster-wide counters).
+# ============================================
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ratelimit-config
+  namespace: istio-system
+  labels:
+    app: ratelimit
+data:
+  config.yaml: |
+    domain: golang-system
+    descriptors:
+      - key: PATH
+        value: /rest/v1/items
+        rate_limit:
+          unit: second
+          requests_per_unit: 100
+      - key: PATH
+        value: /rest/v1/orders
+        rate_limit:
+          unit: second
+          requests_per_unit: 50
+      - key: generic_key
+        value: default
+        rate_limit:
+          unit: second
+          requests_per_unit: 200
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: istio-system
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 3
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: istio-system
+  labels:
+    app: redis
+spec:
+  ports:
+  - port: 6379
+    targetPort: redis
+    name: redis
+  selector:
+    app: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ratelimit
+  namespace: istio-system
+  labels:
+    app: ratelimit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ratelimit
+  template:
+    metadata:
+      labels:
+        app: ratelimit
+      annotations:
+        # Rate limit service is outside the app mesh; skip sidecar noise.
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: ratelimit
+        # Pin a known release; avoid :latest drift.
+        image: envoyproxy/ratelimit:49d25f75
+        ports:
+        - containerPort: 8081
+          name: grpc
+        - containerPort: 8080
+          name: http
+        env:
+        - name: LOG_LEVEL
+          value: info
+        - name: REDIS_SOCKET_TYPE
+          value: tcp
+        - name: REDIS_URL
+          value: redis.istio-system.svc.cluster.local:6379
+        - name: USE_STATSD
+          value: "false"
+        - name: RUNTIME_ROOT
+          value: /data
+        - name: RUNTIME_SUBDIRECTORY
+          value: ratelimit
+        - name: RUNTIME_IGNOREDOTFILES
+          value: "true"
+        - name: HOST
+          value: "::"
+        - name: GRPC_HOST
+          value: "::"
+        volumeMounts:
+        - name: config
+          mountPath: /data/ratelimit/config
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+      volumes:
+      - name: config
+        configMap:
+          name: ratelimit-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ratelimit
+  namespace: istio-system
+  labels:
+    app: ratelimit
+spec:
+  ports:
+  - name: grpc
+    port: 8081
+    targetPort: grpc
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: ratelimit
+---
+# Register ratelimit as an explicit Envoy cluster reachable from the gateway.
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: ratelimit-cluster
+  namespace: istio-system
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  configPatches:
+  - applyTo: CLUSTER
+    match:
+      context: GATEWAY
+    patch:
+      operation: ADD
+      value:
+        name: rate_limit_cluster
+        type: STRICT_DNS
+        connect_timeout: 1s
+        lb_policy: ROUND_ROBIN
+        http2_protocol_options: {}
+        load_assignment:
+          cluster_name: rate_limit_cluster
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: ratelimit.istio-system.svc.cluster.local
+                    port_value: 8081
+---
+# Insert global rate limit HTTP filter before the router on the gateway.
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: filter-ratelimit
+  namespace: istio-system
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.ratelimit
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+          domain: golang-system
+          failure_mode_deny: false
+          timeout: 0.1s
+          rate_limit_service:
+            grpc_service:
+              envoy_grpc:
+                cluster_name: rate_limit_cluster
+            transport_api_version: V3
+---
+# Attach rate-limit actions to gateway virtual hosts (path descriptors).
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: filter-ratelimit-actions
+  namespace: istio-system
+spec:
+  workloadSelector:
+    labels:
+      istio: ingressgateway
+  configPatches:
+  - applyTo: VIRTUAL_HOST
+    match:
+      context: GATEWAY
+    patch:
+      operation: MERGE
+      value:
+        rate_limits:
+        - actions:
+          - request_headers:
+              header_name: ":path"
+              descriptor_key: PATH
+        - actions:
+          - generic_key:
+              descriptor_value: default

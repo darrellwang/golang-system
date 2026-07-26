@@ -87,7 +87,7 @@ func (a *App) Start() error {
 	}
 	r.Use(chiMW.RealIP)
 	r.Use(httputil.RequestIDMiddleware)
-	r.Use(httputil.AuthContextMiddleware)
+	r.Use(httputil.AuthContextMiddleware(&httputil.AuthConfig{TrustHeaders: a.cfg.AuthTrustHeaders}))
 	r.Use(httputil.RecoveryMiddleware(a.log))
 	r.Use(httputil.MaxBodySizeMiddleware(1 << 20))
 	r.Use(httputil.ContentTypeMiddleware)
@@ -112,7 +112,12 @@ func (a *App) Start() error {
 		httputil.OK(w, map[string]string{"status": "ok"})
 	})
 
-	itemHandler.NewItemHandler(itemSvc, a.log).Routes(r)
+	r.Group(func(r chi.Router) {
+		if a.cfg.AuthRequireJWT {
+			r.Use(httputil.RequireAuthenticated)
+		}
+		itemHandler.NewItemHandler(itemSvc, a.log).Routes(r)
+	})
 
 	addr := fmt.Sprintf(":%d", a.cfg.AppPort)
 	a.srv = &http.Server{

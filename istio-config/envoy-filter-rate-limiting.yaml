@@ -1,33 +1,29 @@
 # ============================================
-# 限流配置 - EnvoyFilter (本地限流)
-# 使用 Envoy 的 Local Rate Limit 过滤器
+# Local rate limiting (per-pod token bucket)
 # ============================================
-
 ---
-# golang-app (Item Service) 限流配置
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
-  name: golang-app-rate-limiting
+  name: golang-app-local-ratelimit
   namespace: default
   labels:
     app: golang-app
     component: rate-limiting
 spec:
-  # 选择目标工作负载
   workloadSelector:
     labels:
       app: golang-app
-  
   configPatches:
-  # 插入 HTTP 过滤器 (本地限流)
   - applyTo: HTTP_FILTER
     match:
-      context: SIDECAR_INBOUND  # 入站流量
+      context: SIDECAR_INBOUND
       listener:
         filterChain:
           filter:
             name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
     patch:
       operation: INSERT_BEFORE
       value:
@@ -35,75 +31,32 @@ spec:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
           stat_prefix: local_rate_limit
-          
-          # 令牌桶配置
           token_bucket:
-            max_tokens: 100              # 令牌桶容量
-            tokens_per_fill: 10          # 每次补充令牌数
-            fill_interval: 1s            # 补充间隔 (1秒补充10个令牌)
-          
-          # 过滤器开关
+            max_tokens: 100
+            tokens_per_fill: 10
+            fill_interval: 1s
           filter_enabled:
             runtime_key: local_rate_limit_enabled
-            default_value: true
+            default_value:
+              numerator: 100
+              denominator: HUNDRED
           filter_enforced:
             runtime_key: local_rate_limit_enforced
-            default_value: true
-          
-          # 响应头 (返回限流信息)
+            default_value:
+              numerator: 100
+              denominator: HUNDRED
           response_headers_to_add:
-          - header:
-              key: "x-rate-limit-limit"
-              value: "100"
-            append: false
-          - header:
-              key: "x-rate-limit-remaining"
-              value: "90"
-            append: false
-          - header:
-              key: "x-rate-limit-reset"
-              value: "1"
-            append: false
-          
-          # 限流响应 (429 Too Many Requests)
+          - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+            header:
+              key: x-local-rate-limit
+              value: "true"
           status:
-            code: "429"
-          response_headers_to_add:
-          - header:
-              key: "content-type"
-              value: "application/json"
-            append: false
-          - header:
-              key: "retry-after"
-              value: "1"
-            append: false
-  
-  # 插入网络过滤器 (可选，用于 TCP 限流)
-  - applyTo: NETWORK_FILTER
-    match:
-      context: SIDECAR_INBOUND
-      listener:
-        filterChain:
-          filter:
-            name: "envoy.filters.network.tcp_proxy"
-    patch:
-      operation: INSERT_BEFORE
-      value:
-        name: envoy.filters.network.local_ratelimit
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.network.local_ratelimit.v3.LocalRateLimit
-          stat_prefix: tcp_local_rate_limit
-          token_bucket:
-            max_tokens: 1000
-            tokens_per_fill: 100
-            fill_interval: 1s
-
+            code: TooManyRequests
 ---
-# golang-app2 (Order Service) 限流配置
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
-  name: golang-app2-rate-limiting
+  name: golang-app2-local-ratelimit
   namespace: default
   labels:
     app: golang-app2
@@ -112,7 +65,6 @@ spec:
   workloadSelector:
     labels:
       app: golang-app2
-  
   configPatches:
   - applyTo: HTTP_FILTER
     match:
@@ -121,6 +73,8 @@ spec:
         filterChain:
           filter:
             name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
     patch:
       operation: INSERT_BEFORE
       value:
@@ -129,234 +83,23 @@ spec:
           "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
           stat_prefix: local_rate_limit
           token_bucket:
-            max_tokens: 50               # Order 服务限流更严格
+            max_tokens: 50
             tokens_per_fill: 5
             fill_interval: 1s
           filter_enabled:
             runtime_key: local_rate_limit_enabled
-            default_value: true
+            default_value:
+              numerator: 100
+              denominator: HUNDRED
           filter_enforced:
             runtime_key: local_rate_limit_enforced
-            default_value: true
+            default_value:
+              numerator: 100
+              denominator: HUNDRED
           response_headers_to_add:
-          - header:
-              key: "x-rate-limit-limit"
-              value: "50"
-            append: false
-          - header:
-              key: "x-rate-limit-remaining"
-              value: "45"
-            append: false
-          - header:
-              key: "x-rate-limit-reset"
-              value: "1"
-            append: false
+          - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+            header:
+              key: x-local-rate-limit
+              value: "true"
           status:
-            code: "429"
-          response_headers_to_add:
-          - header:
-              key: "content-type"
-              value: "application/json"
-            append: false
-          - header:
-              key: "retry-after"
-              value: "1"
-            append: false
-
----
-# ============================================
-# 全局限流配置 (使用 Redis)
-# 需要部署 Ratelimit Service
-# ============================================
-
----
-# Ratelimit Service 配置 (可选)
-apiVersion: v1
-kind: Service
-metadata:
-  name: ratelimit
-  namespace: istio-system
-spec:
-  ports:
-  - port: 8080
-    name: http
-  - port: 8081
-    name: grpc
-  selector:
-    app: ratelimit
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ratelimit
-  namespace: istio-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ratelimit
-  template:
-    metadata:
-      labels:
-        app: ratelimit
-    spec:
-      containers:
-      - name: ratelimit
-        image: envoyproxy/ratelimit:latest
-        ports:
-        - containerPort: 8080
-        - containerPort: 8081
-        env:
-        - name: LOG_LEVEL
-          value: "debug"
-        - name: REDIS_SOCKET_TYPE
-          value: "tcp"
-        - name: REDIS_URL
-          value: "redis:6379"
-        - name: USE_STATSD
-          value: "false"
-        - name: RUNTIME_ROOT
-          value: "/data"
-        - name: RUNTIME_SUBDIRECTORY
-          value: "ratelimit"
-        volumeMounts:
-        - name: config
-          mountPath: /data/ratelimit
-      volumes:
-      - name: config
-        configMap:
-          name: ratelimit-config
-
----
-# Redis (用于全局限流)
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis
-  namespace: istio-system
-spec:
-  ports:
-  - port: 6379
-    name: redis
-  selector:
-    app: redis
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: redis
-  namespace: istio-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-      - name: redis
-        image: redis:7-alpine
-        ports:
-        - containerPort: 6379
-        resources:
-          requests:
-            memory: 128Mi
-            cpu: 100m
-          limits:
-            memory: 256Mi
-            cpu: 200m
-
----
-# ============================================
-# VirtualService 限流配置 (更简单的方式)
-# 使用 Istio 原生限流 (需要 Mixer)
-# ============================================
-
----
-# golang-app 限流 (使用 VirtualService)
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: golang-app-rate-limit-vs
-  namespace: default
-spec:
-  hosts:
-  - golang-app
-  http:
-  # 路由 1: 正常流量
-  - route:
-    - destination:
-        host: golang-app
-        subset: v1
-    # 超时配置
-    timeout: 10s
-    # 重试配置
-    retries:
-      attempts: 3
-      perTryTimeout: 3s
-      retryOn: 5xx,connect-failure,refused-stream,gateway-error,envoy-ratelimited
-    # 故障注入 (测试用)
-    # fault:
-    #   delay:
-    #     percentage:
-    #       value: 10
-    #     fixedDelay: 5s
-    #   abort:
-    #     percentage:
-    #       value: 5
-    #     httpStatus: 500
-
----
-# golang-app2 限流 (使用 VirtualService)
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: golang-app2-rate-limit-vs
-  namespace: default
-spec:
-  hosts:
-  - golang-app2
-  http:
-  - route:
-    - destination:
-        host: golang-app2
-        subset: v1
-    timeout: 10s
-    retries:
-      attempts: 3
-      perTryTimeout: 3s
-      retryOn: 5xx,connect-failure,refused-stream,gateway-error,envoy-ratelimited
-
----
-# ============================================
-# 使用说明
-# ============================================
-# 
-# 1. 应用配置:
-#    kubectl apply -f envoy-filter-rate-limiting.yaml
-# 
-# 2. 查看配置:
-#    kubectl get envoyfilter
-#    kubectl describe envoyfilter golang-app-rate-limiting
-# 
-# 3. 测试限流:
-#    # 部署 fortio
-#    kubectl run fortio --image=fortio/fortio -- sleep 3600
-#    
-#    # 发送超过限量的请求
-#    kubectl exec fortio -- fortio load -qps 200 -n 200 http://golang-app:8080/rest/v1/items
-#    
-#    # 检查是否返回 429
-#    kubectl logs deployment/golang-app -c istio-proxy | grep "local_rate_limit"
-#    
-#    # 查看限流统计
-#    kubectl exec deployment/golang-app -c istio-proxy -- curl localhost:15000/stats | grep rate_limit
-# 
-# 4. 查看 Proxy 配置:
-#    istioctl proxy-config filter deployment/golang-app
-# 
-# 5. 删除配置:
-#    kubectl delete -f envoy-filter-rate-limiting.yaml
+            code: TooManyRequests

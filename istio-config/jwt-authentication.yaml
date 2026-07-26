@@ -1,0 +1,93 @@
+# ============================================
+# Gateway JWT Authentication
+# RequestAuthentication validates Bearer JWTs at the ingress gateway.
+# AuthorizationPolicy requires a valid principal for /rest/* paths.
+#
+# Dev issuer uses an inline JWKS (see istio-config/jwt/). Replace with your
+# real IdP (Auth0 / Keycloak / Cognito) jwksUri for production.
+# ============================================
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: golang-system-jwt
+  namespace: istio-system
+  labels:
+    app: golang-system
+    component: jwt
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  jwtRules:
+  # --- DEV (inline JWKS) ---
+  - issuer: "golang-system-dev"
+    audiences:
+    - "golang-system"
+    forwardOriginalToken: true
+    outputClaimToHeaders:
+    - header: x-jwt-sub
+      claim: sub
+    - header: x-jwt-org
+      claim: org_id
+    - header: x-jwt-email
+      claim: email
+    jwks: |
+      {
+        "keys": [
+          {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "RS256",
+            "kid": "rOxTWJqbhHs",
+            "n": "nc-GLTPNJbsFEzIFhgFPxZNyc0EjX8HZevIH9OJEEVLMCJ3_MyrMu7VQQ5k7Nne2w3S0b59sH060IkQUjzuZ98aFfXlrKopYqzRPYSWXkiKhJaxJEA0ZQGVAXRG9g4N8s2u42jpQLINeqMvqZLXYafvOuA0AUNZqktupBIOYrSpGnKG3ZmvBnI0mnTbiGf0GXD15GmTT6tSmB3_4ST9DiNC-B43DOCgvqjH4o3NMIVyNi7JcUGD9mrCZTeKvjPVdpuf9x2Sp1OY7Rv1NRHUvHBn_8auCTHMyj0NyTyYiAh68esHz6xlluUxoz9mbNgffD12SKO9NcyFI4in3m477yw",
+            "e": "AQAB"
+          }
+        ]
+      }
+  # --- PROD example (uncomment and replace) ---
+  # - issuer: "https://auth.example.com/"
+  #   jwksUri: "https://auth.example.com/.well-known/jwks.json"
+  #   audiences:
+  #   - "golang-system"
+  #   forwardOriginalToken: true
+  #   outputClaimToHeaders:
+  #   - header: x-jwt-sub
+  #     claim: sub
+  #   - header: x-jwt-org
+  #     claim: org_id
+---
+# Require JWT for API routes; allow health probes without a token.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: golang-system-gateway-authz
+  namespace: istio-system
+  labels:
+    app: golang-system
+    component: jwt
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: ALLOW
+  rules:
+  # Health / readiness via gateway (optional)
+  - to:
+    - operation:
+        paths:
+        - /admin/health/*
+        - /health
+        - /healthz
+  # Authenticated API traffic
+  - from:
+    - source:
+        requestPrincipals: ["*"]
+    to:
+    - operation:
+        paths:
+        - /rest/*
+---
+# Deny unauthenticated access to everything else on the gateway explicitly
+# when the above ALLOW policies do not match (default deny once any policy
+# selects the workload). No extra DENY policy required.

@@ -60,7 +60,7 @@ spec:
     retries:
       attempts: 3
       perTryTimeout: 10s
-      retryOn: "5xx,connect-failure,refused-stream,gateway-error,reset"
+      retryOn: "5xx,connect-failure,refused-stream,gateway-error,reset,envoy-ratelimited"
     headers:
       response:
         set:
@@ -130,7 +130,7 @@ spec:
     retries:
       attempts: 3
       perTryTimeout: 10s
-      retryOn: "5xx,connect-failure,refused-stream,gateway-error,reset"
+      retryOn: "5xx,connect-failure,refused-stream,gateway-error,reset,envoy-ratelimited"
     headers:
       response:
         set:
