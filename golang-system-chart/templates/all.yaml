@@ -1,12 +1,38 @@
-apiVersion: apps/v1
-kind: Deployment
+{{- /* Shared DB secrets (override passwords via --set / sealed-secrets / external-secrets). */ -}}
+apiVersion: v1
+kind: Secret
 metadata:
-  name: {{ .Release.Name }}-app
+  name: golang-app-db
   labels:
     app: golang-app
     release: {{ .Release.Name }}
+type: Opaque
+stringData:
+  DB_PASSWORD: {{ .Values.postgresApp.password | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: golang-app2-db
+  labels:
+    app: golang-app2
+    release: {{ .Release.Name }}
+type: Opaque
+stringData:
+  DB_PASSWORD: {{ .Values.postgresApp2.password | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golang-app
+  labels:
+    app: golang-app
+    version: {{ .Values.golangApp.version }}
+    release: {{ .Release.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.golangApp.autoscaling.enabled }}
+  replicas: {{ .Values.golangApp.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: golang-app
@@ -14,38 +40,73 @@ spec:
     metadata:
       labels:
         app: golang-app
+        version: {{ .Values.golangApp.version }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: golang-app
           image: "{{ .Values.golangApp.image.repository }}:{{ .Values.golangApp.image.tag }}"
           imagePullPolicy: {{ .Values.golangApp.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
-            - containerPort: {{ .Values.golangApp.service.port }}
+            - name: http
+              containerPort: {{ .Values.golangApp.config.appPort }}
           env:
-            - name: SERVER_PORT
-              value: "{{ .Values.golangApp.service.port }}"
-            - name: APP_DB_DSN
-              value: "postgres://{{ .Values.golangApp.db.user }}:{{ .Values.golangApp.db.password }}@{{ .Values.golangApp.db.host }}:{{ .Values.golangApp.db.port }}/{{ .Values.golangApp.db.name }}?sslmode=disable"
+            - name: APP_PORT
+              value: {{ .Values.golangApp.config.appPort | quote }}
+            - name: APP_MODE
+              value: {{ .Values.golangApp.config.appMode | quote }}
+            - name: APP_NAME
+              value: "golang-app"
+            - name: LOG_LEVEL
+              value: {{ .Values.golangApp.config.logLevel | quote }}
+            - name: DB_HOST
+              value: {{ .Values.golangApp.config.dbHost | quote }}
+            - name: DB_PORT
+              value: {{ .Values.golangApp.config.dbPort | quote }}
+            - name: DB_NAME
+              value: {{ .Values.golangApp.config.dbName | quote }}
+            - name: DB_USER
+              value: {{ .Values.golangApp.config.dbUser | quote }}
+            - name: DB_SSLMODE
+              value: {{ .Values.golangApp.config.dbSslmode | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: golang-app-db
+                  key: DB_PASSWORD
             - name: NATS_URL
-              value: {{ .Values.golangApp.nats.url | quote }}
+              value: {{ .Values.golangApp.config.natsUrl | quote }}
+            - name: QUEUE_GROUP
+              value: {{ .Values.golangApp.config.queueGroup | quote }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.golangApp.config.corsAllowedOrigins | quote }}
           livenessProbe:
             httpGet:
-              path: /health
-              port: {{ .Values.golangApp.service.port }}
+              path: /admin/health/liveness
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
-              port: {{ .Values.golangApp.service.port }}
+              path: /admin/health/readiness
+              port: http
             initialDelaySeconds: 3
             periodSeconds: 5
-
+          resources:
+            {{- toYaml .Values.golangApp.resources | nindent 12 }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-app
+  name: golang-app
   labels:
     app: golang-app
     release: {{ .Release.Name }}
@@ -53,22 +114,48 @@ spec:
   type: ClusterIP
   ports:
     - port: {{ .Values.golangApp.service.port }}
-      targetPort: {{ .Values.golangApp.service.port }}
+      targetPort: http
       protocol: TCP
       name: http
   selector:
     app: golang-app
-
+{{- if .Values.golangApp.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: golang-app
+  labels:
+    app: golang-app
+    release: {{ .Release.Name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: golang-app
+  minReplicas: {{ .Values.golangApp.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.golangApp.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.golangApp.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-app2
+  name: golang-app2
   labels:
     app: golang-app2
+    version: {{ .Values.golangApp2.version }}
     release: {{ .Release.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.golangApp2.autoscaling.enabled }}
+  replicas: {{ .Values.golangApp2.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: golang-app2
@@ -76,40 +163,75 @@ spec:
     metadata:
       labels:
         app: golang-app2
+        version: {{ .Values.golangApp2.version }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: golang-app2
           image: "{{ .Values.golangApp2.image.repository }}:{{ .Values.golangApp2.image.tag }}"
           imagePullPolicy: {{ .Values.golangApp2.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
-            - containerPort: {{ .Values.golangApp2.service.port }}
+            - name: http
+              containerPort: {{ .Values.golangApp2.config.appPort }}
           env:
-            - name: SERVER_PORT
-              value: "{{ .Values.golangApp2.service.port }}"
-            - name: APP_DB_DSN
-              value: "postgres://{{ .Values.golangApp2.db.user }}:{{ .Values.golangApp2.db.password }}@{{ .Values.golangApp2.db.host }}:{{ .Values.golangApp2.db.port }}/{{ .Values.golangApp2.db.name }}?sslmode=disable"
+            - name: APP_PORT
+              value: {{ .Values.golangApp2.config.appPort | quote }}
+            - name: APP_MODE
+              value: {{ .Values.golangApp2.config.appMode | quote }}
+            - name: APP_NAME
+              value: "golang-app2"
+            - name: LOG_LEVEL
+              value: {{ .Values.golangApp2.config.logLevel | quote }}
+            - name: DB_HOST
+              value: {{ .Values.golangApp2.config.dbHost | quote }}
+            - name: DB_PORT
+              value: {{ .Values.golangApp2.config.dbPort | quote }}
+            - name: DB_NAME
+              value: {{ .Values.golangApp2.config.dbName | quote }}
+            - name: DB_USER
+              value: {{ .Values.golangApp2.config.dbUser | quote }}
+            - name: DB_SSLMODE
+              value: {{ .Values.golangApp2.config.dbSslmode | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: golang-app2-db
+                  key: DB_PASSWORD
             - name: NATS_URL
-              value: {{ .Values.golangApp2.nats.url | quote }}
-            - name: APP_SERVICE_URL
-              value: {{ .Values.golangApp2.appServiceUrl | quote }}
+              value: {{ .Values.golangApp2.config.natsUrl | quote }}
+            - name: QUEUE_GROUP
+              value: {{ .Values.golangApp2.config.queueGroup | quote }}
+            - name: ITEM_SERVICE_URL
+              value: {{ .Values.golangApp2.config.itemServiceUrl | quote }}
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.golangApp2.config.corsAllowedOrigins | quote }}
           livenessProbe:
             httpGet:
-              path: /health
-              port: {{ .Values.golangApp2.service.port }}
+              path: /admin/health/liveness
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /health
-              port: {{ .Values.golangApp2.service.port }}
+              path: /admin/health/readiness
+              port: http
             initialDelaySeconds: 3
             periodSeconds: 5
-
+          resources:
+            {{- toYaml .Values.golangApp2.resources | nindent 12 }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-app2
+  name: golang-app2
   labels:
     app: golang-app2
     release: {{ .Release.Name }}
@@ -117,17 +239,54 @@ spec:
   type: ClusterIP
   ports:
     - port: {{ .Values.golangApp2.service.port }}
-      targetPort: {{ .Values.golangApp2.service.port }}
+      targetPort: http
       protocol: TCP
       name: http
   selector:
     app: golang-app2
-
+{{- if .Values.golangApp2.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: golang-app2
+  labels:
+    app: golang-app2
+    release: {{ .Release.Name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: golang-app2
+  minReplicas: {{ .Values.golangApp2.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.golangApp2.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.golangApp2.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if .Values.postgresApp.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-app-data
+  labels:
+    app: postgres-app
+    release: {{ .Release.Name }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.postgresApp.persistence.size }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-postgres-app
+  name: postgres-app
   labels:
     app: postgres-app
     release: {{ .Release.Name }}
@@ -152,8 +311,17 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.postgresApp.user | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgresApp.password | quote }}
-
+              valueFrom:
+                secretKeyRef:
+                  name: golang-app-db
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-app-data
 ---
 apiVersion: v1
 kind: Service
@@ -171,12 +339,26 @@ spec:
       name: postgresql
   selector:
     app: postgres-app
-
+{{- end }}
+{{- if .Values.postgresApp2.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-app2-data
+  labels:
+    app: postgres-app2
+    release: {{ .Release.Name }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.postgresApp2.persistence.size }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-postgres-app2
+  name: postgres-app2
   labels:
     app: postgres-app2
     release: {{ .Release.Name }}
@@ -201,8 +383,17 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.postgresApp2.user | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgresApp2.password | quote }}
-
+              valueFrom:
+                secretKeyRef:
+                  name: golang-app2-db
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-app2-data
 ---
 apiVersion: v1
 kind: Service
@@ -220,12 +411,25 @@ spec:
       name: postgresql
   selector:
     app: postgres-app2
-
+{{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nats-data
+  labels:
+    app: nats
+    release: {{ .Release.Name }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.nats.persistence.size }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-nats
+  name: nats
   labels:
     app: nats
     release: {{ .Release.Name }}
@@ -242,13 +446,22 @@ spec:
       containers:
         - name: nats
           image: "{{ .Values.nats.image }}"
-          args: ["-js"]
+          args:
+            - "-js"
+            - "-sd"
+            - "/data"
           ports:
-            - containerPort: {{ .Values.nats.port }}
+            - containerPort: {{ .Values.nats.clientPort }}
               name: client
             - containerPort: {{ .Values.nats.monitorPort }}
               name: monitor
-
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nats-data
 ---
 apiVersion: v1
 kind: Service
@@ -260,13 +473,47 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 4222
-      targetPort: 4222
+    - port: {{ .Values.nats.clientPort }}
+      targetPort: client
       protocol: TCP
       name: client
-    - port: 8222
-      targetPort: 8222
+    - port: {{ .Values.nats.monitorPort }}
+      targetPort: monitor
       protocol: TCP
       name: monitor
   selector:
     app: nats
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: golang-system
+  labels:
+    release: {{ .Release.Name }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .service }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

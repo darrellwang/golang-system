@@ -8,6 +8,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+
+	apperror "github.com/darrell/golang-system/golang-commons/apperror"
+)
+
+// Typed context keys to avoid collisions across packages.
+type ctxKey int
+
+const (
+	CtxRequestID ctxKey = iota + 1
+	CtxUserID
+	CtxOrganizationID
+	CtxTraceParent
 )
 
 // CORSConfig holds Cross-Origin Resource Sharing configuration.
@@ -35,23 +47,29 @@ func CORSMiddleware(cfg *CORSConfig) func(http.Handler) http.Handler {
 		cfg = DefaultCORSConfig()
 	}
 
-	allowedOrigins := strings.Join(cfg.AllowedOrigins, ",")
 	allowedMethods := strings.Join(cfg.AllowedMethods, ",")
 	allowedHeaders := strings.Join(cfg.AllowedHeaders, ",")
+	allowAll := len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] == "*"
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
+			origin := r.Header.Get("Origin")
+			if allowAll {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if origin != "" && originAllowed(origin, cfg.AllowedOrigins) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+			}
+
 			w.Header().Set("Access-Control-Allow-Methods", allowedMethods)
 			w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
-			if cfg.AllowCredentials {
+			if cfg.AllowCredentials && !allowAll {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 			if cfg.MaxAge > 0 {
 				w.Header().Set("Access-Control-Max-Age", intToString(int(cfg.MaxAge.Seconds())))
 			}
 
-			// Handle preflight requests
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
@@ -60,6 +78,15 @@ func CORSMiddleware(cfg *CORSConfig) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func originAllowed(origin string, allowed []string) bool {
+	for _, o := range allowed {
+		if o == origin {
+			return true
+		}
+	}
+	return false
 }
 
 func intToString(n int) string {
@@ -92,7 +119,10 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 			id = uuid.New().String()
 		}
 		w.Header().Set("X-Request-ID", id)
-		ctx := context.WithValue(r.Context(), "request_id", id)
+		ctx := context.WithValue(r.Context(), CtxRequestID, id)
+		if tp := r.Header.Get("traceparent"); tp != "" {
+			ctx = context.WithValue(ctx, CtxTraceParent, tp)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -116,14 +146,15 @@ func LoggingMiddleware(log zerolog.Logger) func(http.Handler) http.Handler {
 }
 
 // AuthContextMiddleware extracts user/organization IDs from headers into context.
+// Note: headers are trusted only behind a gateway that authenticates the caller.
 func AuthContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if orgID := r.Header.Get("X-Organization-ID"); orgID != "" {
-			ctx = context.WithValue(ctx, "organization_id", orgID)
+			ctx = context.WithValue(ctx, CtxOrganizationID, orgID)
 		}
 		if userID := r.Header.Get("X-User-ID"); userID != "" {
-			ctx = context.WithValue(ctx, "user_id", userID)
+			ctx = context.WithValue(ctx, CtxUserID, userID)
 		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -149,7 +180,7 @@ func ContentTypeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// RecoveryMiddleware recovers from panics and returns 500.
+// RecoveryMiddleware recovers from panics and returns a JSON 500 envelope.
 func RecoveryMiddleware(log zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +190,7 @@ func RecoveryMiddleware(log zerolog.Logger) func(http.Handler) http.Handler {
 						Interface("panic", rec).
 						Str("path", r.URL.Path).
 						Msg("panic_recovered")
-					w.WriteHeader(http.StatusInternalServerError)
+					Error(w, apperror.NewInternal("internal server error"))
 				}
 			}()
 			next.ServeHTTP(w, r)
@@ -169,7 +200,7 @@ func RecoveryMiddleware(log zerolog.Logger) func(http.Handler) http.Handler {
 
 // GetRequestID retrieves the request ID from context.
 func GetRequestID(ctx context.Context) string {
-	if v, ok := ctx.Value("request_id").(string); ok {
+	if v, ok := ctx.Value(CtxRequestID).(string); ok {
 		return v
 	}
 	return ""
@@ -177,7 +208,7 @@ func GetRequestID(ctx context.Context) string {
 
 // GetUserID retrieves the user ID from context.
 func GetUserID(ctx context.Context) string {
-	if v, ok := ctx.Value("user_id").(string); ok {
+	if v, ok := ctx.Value(CtxUserID).(string); ok {
 		return v
 	}
 	return ""
@@ -185,7 +216,7 @@ func GetUserID(ctx context.Context) string {
 
 // GetOrganizationID retrieves the organization ID from context.
 func GetOrganizationID(ctx context.Context) string {
-	if v, ok := ctx.Value("organization_id").(string); ok {
+	if v, ok := ctx.Value(CtxOrganizationID).(string); ok {
 		return v
 	}
 	return ""

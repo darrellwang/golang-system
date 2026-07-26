@@ -108,20 +108,20 @@ spec:
 
 ---
 # 方式 1: 使用 cert-manager 自动签发证书 (推荐)
+# Secret must live in the same namespace as istio-ingressgateway (istio-system).
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: golang-system-tls
-  namespace: default
+  namespace: istio-system
 spec:
-  secretName: golang-system-tls  # 与 Gateway 中的 credentialName 对应
+  secretName: golang-system-tls  # Gateway credentialName reads from gateway Pod namespace
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
   - "api.example.com"
-  - "*.example.com"
-  - "localhost"
+  # Wildcard requires DNS-01; keep HTTP-01 host list to a concrete name.
   usages:
   - digital signature
   - key encipherment

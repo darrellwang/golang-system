@@ -23,24 +23,20 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG_DEV }}
 
-      - name: helm dependency update
-        run: |
-          cd golang-system-chart
-          helm dependency update
-
       - name: helm upgrade --install (DEV)
         run: |
           cd golang-system-chart
           helm upgrade --install golang-system . \
             --set global.environment=dev \
-            --set golang-app.image.tag=${{ github.sha }} \
-            --set golang-app2.image.tag=${{ github.sha }} \
+            --set golangApp.image.tag=${{ github.sha }} \
+            --set golangApp2.image.tag=${{ github.sha }} \
             --wait --timeout 10m
 
       - name: Smoke test
         run: |
-          kubectl rollout status deployment/golang-system-golang-app --timeout=5m
-          kubectl rollout status deployment/golang-system-golang-app2 --timeout=5m
+          kubectl rollout status deployment/golang-app --timeout=5m
+          kubectl rollout status deployment/golang-app2 --timeout=5m
+          kubectl get svc golang-app golang-app2
 
   staging:
     needs: dev
@@ -54,20 +50,18 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
-      - name: helm dependency update
-        run: cd golang-system-chart && helm dependency update
       - name: helm upgrade --install (STAG)
         run: |
           cd golang-system-chart
           helm upgrade --install golang-system . \
             --set global.environment=staging \
-            --set golang-app.image.tag=${{ github.sha }} \
-            --set golang-app2.image.tag=${{ github.sha }} \
+            --set golangApp.image.tag=${{ github.sha }} \
+            --set golangApp2.image.tag=${{ github.sha }} \
             --wait --timeout 10m
       - name: Smoke test
         run: |
-          kubectl rollout status deployment/golang-system-golang-app --timeout=5m
-          kubectl rollout status deployment/golang-system-golang-app2 --timeout=5m
+          kubectl rollout status deployment/golang-app --timeout=5m
+          kubectl rollout status deployment/golang-app2 --timeout=5m
 
   prod:
     needs: staging
@@ -81,17 +75,15 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
-      - name: helm dependency update
-        run: cd golang-system-chart && helm dependency update
       - name: helm upgrade --install (PROD)
         run: |
           cd golang-system-chart
           helm upgrade --install golang-system . \
             --set global.environment=production \
-            --set golang-app.image.tag=${{ github.sha }} \
-            --set golang-app2.image.tag=${{ github.sha }} \
+            --set golangApp.image.tag=${{ github.sha }} \
+            --set golangApp2.image.tag=${{ github.sha }} \
             --wait --timeout 10m
       - name: Smoke test
         run: |
-          kubectl rollout status deployment/golang-system-golang-app --timeout=5m
-          kubectl rollout status deployment/golang-system-golang-app2 --timeout=5m
+          kubectl rollout status deployment/golang-app --timeout=5m
+          kubectl rollout status deployment/golang-app2 --timeout=5m

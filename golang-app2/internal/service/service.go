@@ -13,9 +13,10 @@ type OrderRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Order, error)
 	List(ctx context.Context, offset, limit int, status string) ([]*domain.Order, int, error)
 	Update(ctx context.Context, order *domain.Order) error
+	ListPendingIDsByItemID(ctx context.Context, itemID string) ([]string, error)
 }
 
-// EventPublisher publishes order domain events.
+// EventPublisher publishes order domain events (outbox-backed).
 type EventPublisher interface {
 	PublishOrderCreated(ctx context.Context, order *domain.Order) error
 	PublishOrderUpdated(ctx context.Context, order *domain.Order) error
@@ -27,6 +28,11 @@ type ItemServiceClient interface {
 	GetByID(ctx context.Context, id string) (*domain.ItemView, error)
 }
 
+// Transactor runs work inside a DB transaction.
+type Transactor interface {
+	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
 // OrderService is the inbound port for order business operations.
 type OrderService interface {
 	CreateOrder(ctx context.Context, req *domain.CreateOrderRequest) (*domain.Order, error)
@@ -35,8 +41,6 @@ type OrderService interface {
 	UpdateOrder(ctx context.Context, id string, req *domain.UpdateOrderRequest) (*domain.Order, error)
 	CancelOrder(ctx context.Context, id string) error
 
-	// HandleItemDeleted cancels orders that reference a deleted item.
 	HandleItemDeleted(ctx context.Context, evt *events.Event[events.ItemDeletedData]) error
-	// HandleItemUpdated records item change log for visibility / cache invalidation.
 	HandleItemUpdated(ctx context.Context, evt *events.Event[events.ItemUpdatedData]) error
 }

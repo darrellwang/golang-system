@@ -16,11 +16,16 @@ type ItemRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
-// EventPublisher is the port for publishing domain events.
+// EventPublisher is the port for publishing domain events (outbox-backed).
 type EventPublisher interface {
 	PublishItemCreated(ctx context.Context, item *domain.Item) error
 	PublishItemUpdated(ctx context.Context, item *domain.Item) error
 	PublishItemDeleted(ctx context.Context, id string) error
+}
+
+// Transactor runs work inside a DB transaction.
+type Transactor interface {
+	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
 // ItemService is the inbound port for item business operations.
@@ -31,10 +36,7 @@ type ItemService interface {
 	UpdateItem(ctx context.Context, id string, req *domain.UpdateItemRequest) (*domain.Item, error)
 	DeleteItem(ctx context.Context, id string) error
 
-	// HandleOrderCreated tracks which items are referenced by an order.
 	HandleOrderCreated(ctx context.Context, evt *events.Event[events.OrderCreatedData]) error
-	// HandleGetItemByID implements the request-reply handler.
 	HandleGetItemByID(ctx context.Context, req *events.GetItemRequest) (*events.GetItemResponse, error)
-	// HandleExternalCreate handles an item.created event from an external system.
 	HandleExternalCreate(ctx context.Context, evt *events.Event[events.ItemCreatedData]) error
 }

@@ -2,36 +2,30 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
+	"net"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	apperror "github.com/darrell/golang-system/golang-commons/apperror"
+	"github.com/darrell/golang-system/golang-commons/httpclient"
 	"github.com/darrell/golang-system/golang-app2/internal/domain"
 	"github.com/darrell/golang-system/golang-events"
 )
 
 type orderService struct {
-	repo          OrderRepository
-	publisher     EventPublisher
-	itemClient    ItemServiceClient
-	log           zerolog.Logger
-
-	trackedMu    sync.RWMutex
-	trackedItems map[string]map[string]struct{} // itemID -> set of orderIDs
+	repo       OrderRepository
+	publisher  EventPublisher
+	itemClient ItemServiceClient
+	tx         Transactor
+	log        zerolog.Logger
 }
 
-func NewOrderService(repo OrderRepository, publisher EventPublisher, itemClient ItemServiceClient, log zerolog.Logger) OrderService {
-	return &orderService{
-		repo:         repo,
-		publisher:    publisher,
-		itemClient:   itemClient,
-		log:          log,
-		trackedItems: make(map[string]map[string]struct{}),
-	}
+func NewOrderService(repo OrderRepository, publisher EventPublisher, itemClient ItemServiceClient, tx Transactor, log zerolog.Logger) OrderService {
+	return &orderService{repo: repo, publisher: publisher, itemClient: itemClient, tx: tx, log: log}
 }
 
 func (s *orderService) CreateOrder(ctx context.Context, req *domain.CreateOrderRequest) (*domain.Order, error) {
@@ -46,7 +40,7 @@ func (s *orderService) CreateOrder(ctx context.Context, req *domain.CreateOrderR
 		}
 		view, err := s.itemClient.GetByID(ctx, it.ItemID)
 		if err != nil {
-			return nil, apperror.NotFound(fmt.Sprintf("item %s", it.ItemID), err)
+			return nil, mapItemClientError(it.ItemID, err)
 		}
 		if view.Status != "active" {
 			return nil, apperror.NewBadInput(fmt.Sprintf("item %s is not active", it.ItemID))
@@ -59,46 +53,37 @@ func (s *orderService) CreateOrder(ctx context.Context, req *domain.CreateOrderR
 	}
 	now := time.Now().UTC()
 	order := &domain.Order{
-		ID:        uuid.New().String(),
-		Status:    domain.OrderStatusPending,
-		Total:     total,
-		Note:      req.Note,
-		Items:     items,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID: uuid.New().String(), Status: domain.OrderStatusPending, Total: total,
+		Note: req.Note, Items: items, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.repo.Create(ctx, order); err != nil {
-		return nil, apperror.Internal("create order", err)
-	}
-	s.trackedMu.Lock()
-	for _, it := range order.Items {
-		set, ok := s.trackedItems[it.ItemID]
-		if !ok {
-			set = make(map[string]struct{})
-			s.trackedItems[it.ItemID] = set
+	err := s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.repo.Create(ctx, order); err != nil {
+			return apperror.Internal("create order", err)
 		}
-		set[order.ID] = struct{}{}
-	}
-	s.trackedMu.Unlock()
-
-	s.publishAsync(ctx, func(ctx context.Context) error {
 		return s.publisher.PublishOrderCreated(ctx, order)
 	})
+	if err != nil {
+		return nil, err
+	}
 	return order, nil
 }
 
-// publishAsync publishes a domain event without blocking the request path.
-// It inherits trace values (request_id, user_id, ...) from ctx via
-// context.WithoutCancel, but detaches cancellation so the event is still
-// published after the originating request has already returned. Publish
-// failures are logged rather than silently dropped — losing domain events
-// in an event-driven architecture is a P0 concern.
-func (s *orderService) publishAsync(ctx context.Context, fn func(ctx context.Context) error) {
-	go func() {
-		if err := fn(context.WithoutCancel(ctx)); err != nil {
-			s.log.Error().Err(err).Msg("failed to publish domain event")
+func mapItemClientError(itemID string, err error) error {
+	if httpclient.IsNotFound(err) {
+		return apperror.NotFound(fmt.Sprintf("item %s", itemID), err)
+	}
+	var se *httpclient.ServiceError
+	if errors.As(err, &se) {
+		if se.StatusCode >= 500 || se.StatusCode == 429 {
+			return apperror.BadGateway("item service unavailable", err)
 		}
-	}()
+		return apperror.BadGateway("item service error", err)
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return apperror.Unavailable("item service timeout", err)
+	}
+	return apperror.BadGateway("item service unreachable", err)
 }
 
 func (s *orderService) GetOrder(ctx context.Context, id string) (*domain.Order, error) {
@@ -134,12 +119,15 @@ func (s *orderService) UpdateOrder(ctx context.Context, id string, req *domain.U
 		o.Note = *req.Note
 	}
 	o.UpdatedAt = time.Now().UTC()
-	if err := s.repo.Update(ctx, o); err != nil {
-		return nil, apperror.Internal("update order", err)
-	}
-	s.publishAsync(ctx, func(ctx context.Context) error {
+	err = s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.repo.Update(ctx, o); err != nil {
+			return apperror.Internal("update order", err)
+		}
 		return s.publisher.PublishOrderUpdated(ctx, o)
 	})
+	if err != nil {
+		return nil, err
+	}
 	return o, nil
 }
 
@@ -153,13 +141,12 @@ func (s *orderService) CancelOrder(ctx context.Context, id string) error {
 	}
 	o.Status = domain.OrderStatusCanceled
 	o.UpdatedAt = time.Now().UTC()
-	if err := s.repo.Update(ctx, o); err != nil {
-		return apperror.Internal("cancel order", err)
-	}
-	s.publishAsync(ctx, func(ctx context.Context) error {
+	return s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.repo.Update(ctx, o); err != nil {
+			return apperror.Internal("cancel order", err)
+		}
 		return s.publisher.PublishOrderCanceled(ctx, o, "user requested")
 	})
-	return nil
 }
 
 func validStatus(s domain.OrderStatus) bool {
@@ -173,18 +160,10 @@ func validStatus(s domain.OrderStatus) bool {
 }
 
 func (s *orderService) HandleItemDeleted(ctx context.Context, evt *events.Event[events.ItemDeletedData]) error {
-	s.trackedMu.RLock()
-	orderIDs, ok := s.trackedItems[evt.Data.ID]
-	if !ok {
-		s.trackedMu.RUnlock()
-		return nil
+	ids, err := s.repo.ListPendingIDsByItemID(ctx, evt.Data.ID)
+	if err != nil {
+		return apperror.Internal("list orders by item", err)
 	}
-	ids := make([]string, 0, len(orderIDs))
-	for id := range orderIDs {
-		ids = append(ids, id)
-	}
-	s.trackedMu.RUnlock()
-
 	for _, id := range ids {
 		order, err := s.repo.GetByID(ctx, id)
 		if err != nil {
@@ -195,7 +174,13 @@ func (s *orderService) HandleItemDeleted(ctx context.Context, evt *events.Event[
 		}
 		order.Status = domain.OrderStatusCanceled
 		order.UpdatedAt = time.Now().UTC()
-		if err := s.repo.Update(ctx, order); err != nil {
+		err = s.tx.WithinTransaction(ctx, func(ctx context.Context) error {
+			if err := s.repo.Update(ctx, order); err != nil {
+				return err
+			}
+			return s.publisher.PublishOrderCanceled(ctx, order, "referenced item was deleted")
+		})
+		if err != nil {
 			s.log.Error().Str("order_id", id).Err(err).Msg("auto-cancel update failed")
 			continue
 		}
@@ -203,9 +188,6 @@ func (s *orderService) HandleItemDeleted(ctx context.Context, evt *events.Event[
 			Str("order_id", id).
 			Str("item_id", evt.Data.ID).
 			Msg("order auto-canceled due to item deletion")
-		if err := s.publisher.PublishOrderCanceled(ctx, order, "referenced item was deleted"); err != nil {
-			s.log.Error().Err(err).Str("order_id", id).Msg("failed to publish auto-cancel event")
-		}
 	}
 	return nil
 }

@@ -38,12 +38,14 @@ services:
   nats:
     image: nats:2.10-alpine
     container_name: golang-nats
-    command: "-js"
+    command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
       - "4222:4222"
       - "8222:8222"
+    volumes:
+      - nats_data:/data
     healthcheck:
-      test: ["CMD", "nats", "server", "check", "connection"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -51,3 +53,4 @@ services:
 volumes:
   pg_app_data:
   pg_app2_data:
+  nats_data:
