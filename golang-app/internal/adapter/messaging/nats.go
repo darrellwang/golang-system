@@ -1,4 +1,4 @@
-// Package messaging contains the NATS publisher adapter.
+// Package messaging contains the outbox-backed publisher adapter for item events.
 package messaging
 
 import (
@@ -7,73 +7,61 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 
+	"github.com/darrell/golang-system/golang-commons/outbox"
 	"github.com/darrell/golang-system/golang-app/internal/domain"
 	"github.com/darrell/golang-system/golang-events"
 )
 
-// NatsPublisher publishes item domain events via NATS.
-type NatsPublisher struct {
-	conn *nats.Conn
-	log  zerolog.Logger
+// OutboxPublisher enqueues item domain events into the transactional outbox.
+type OutboxPublisher struct {
+	store *outbox.Store
+	log   zerolog.Logger
 }
 
-// NewNatsPublisher creates a new NatsPublisher.
-func NewNatsPublisher(conn *nats.Conn, log zerolog.Logger) *NatsPublisher {
-	return &NatsPublisher{conn: conn, log: log}
+// NewOutboxPublisher creates a publisher that writes to the outbox table.
+func NewOutboxPublisher(store *outbox.Store, log zerolog.Logger) *OutboxPublisher {
+	return &OutboxPublisher{store: store, log: log}
 }
 
-func (p *NatsPublisher) publish(subject string, payload any) error {
+func (p *OutboxPublisher) enqueue(ctx context.Context, subject string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	return p.conn.Publish(subject, data)
+	return p.store.Insert(ctx, outbox.NewMessage(subject, data))
 }
 
-func (p *NatsPublisher) PublishItemCreated(_ context.Context, item *domain.Item) error {
+func (p *OutboxPublisher) PublishItemCreated(ctx context.Context, item *domain.Item) error {
 	evt := events.Event[events.ItemCreatedData]{
-		ID:        uuid.New().String(),
-		Type:      events.SubjectItemCreated,
-		Source:    "golang-app",
-		Timestamp: time.Now().UTC(),
+		ID: uuid.New().String(), Type: events.SubjectItemCreated, Source: "golang-app",
+		Version: events.SchemaVersion, Timestamp: time.Now().UTC(),
 		Data: events.ItemCreatedData{
-			ID:          item.ID,
-			Name:        item.Name,
-			Description: item.Description,
-			Status:      string(item.Status),
-			Tags:        item.Tags,
+			ID: item.ID, Name: item.Name, Description: item.Description,
+			Status: string(item.Status), Tags: item.Tags,
 		},
 	}
-	return p.publish(events.SubjectItemCreated, evt)
+	return p.enqueue(ctx, events.SubjectItemCreated, evt)
 }
 
-func (p *NatsPublisher) PublishItemUpdated(_ context.Context, item *domain.Item) error {
+func (p *OutboxPublisher) PublishItemUpdated(ctx context.Context, item *domain.Item) error {
 	evt := events.Event[events.ItemUpdatedData]{
-		ID:        uuid.New().String(),
-		Type:      events.SubjectItemUpdated,
-		Source:    "golang-app",
-		Timestamp: time.Now().UTC(),
+		ID: uuid.New().String(), Type: events.SubjectItemUpdated, Source: "golang-app",
+		Version: events.SchemaVersion, Timestamp: time.Now().UTC(),
 		Data: events.ItemUpdatedData{
-			ID:          item.ID,
-			Name:        item.Name,
-			Description: item.Description,
-			Status:      string(item.Status),
-			Tags:        item.Tags,
+			ID: item.ID, Name: item.Name, Description: item.Description,
+			Status: string(item.Status), Tags: item.Tags,
 		},
 	}
-	return p.publish(events.SubjectItemUpdated, evt)
+	return p.enqueue(ctx, events.SubjectItemUpdated, evt)
 }
 
-func (p *NatsPublisher) PublishItemDeleted(_ context.Context, id string) error {
+func (p *OutboxPublisher) PublishItemDeleted(ctx context.Context, id string) error {
 	evt := events.Event[events.ItemDeletedData]{
-		ID:        uuid.New().String(),
-		Type:      events.SubjectItemDeleted,
-		Source:    "golang-app",
-		Timestamp: time.Now().UTC(),
-		Data:      events.ItemDeletedData{ID: id},
+		ID: uuid.New().String(), Type: events.SubjectItemDeleted, Source: "golang-app",
+		Version: events.SchemaVersion, Timestamp: time.Now().UTC(),
+		Data: events.ItemDeletedData{ID: id},
 	}
-	return p.publish(events.SubjectItemDeleted, evt)
+	return p.enqueue(ctx, events.SubjectItemDeleted, evt)
 }

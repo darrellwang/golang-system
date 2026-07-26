@@ -10,13 +10,16 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/darrell/golang-system/golang-commons/httputil"
 )
 
 // Standard request headers propagated across services.
 const (
-	HeaderRequestID       = "X-Request-ID"
-	HeaderOrganizationID  = "X-Organization-ID"
-	HeaderUserID          = "X-User-ID"
+	HeaderRequestID      = "X-Request-ID"
+	HeaderOrganizationID = "X-Organization-ID"
+	HeaderUserID         = "X-User-ID"
+	HeaderTraceParent    = "traceparent"
 )
 
 // ServiceError is returned for non-2xx responses.
@@ -31,17 +34,28 @@ func (e *ServiceError) Error() string {
 
 // IsNotFound reports whether the error is a 404.
 func IsNotFound(err error) bool {
+	se, ok := err.(*ServiceError)
+	return ok && se.StatusCode == http.StatusNotFound
+}
+
+// IsRetriable reports whether the error is a transient upstream/network failure.
+func IsRetriable(err error) bool {
 	if se, ok := err.(*ServiceError); ok {
-		return se.StatusCode == http.StatusNotFound
+		return se.StatusCode == http.StatusTooManyRequests ||
+			se.StatusCode == http.StatusBadGateway ||
+			se.StatusCode == http.StatusServiceUnavailable ||
+			se.StatusCode == http.StatusGatewayTimeout ||
+			se.StatusCode >= 500
 	}
-	return false
+	return err != nil
 }
 
 // Client is an inter-service HTTP client.
 type Client struct {
-	baseURL string
-	http    *http.Client
-	headers map[string]string
+	baseURL    string
+	http       *http.Client
+	headers    map[string]string
+	maxRetries int
 }
 
 // Option configures a Client.
@@ -62,12 +76,18 @@ func WithHeader(key, value string) Option {
 	}
 }
 
+// WithRetries sets max retries for idempotent GET requests (0 = no retry).
+func WithRetries(n int) Option {
+	return func(c *Client) { c.maxRetries = n }
+}
+
 // New creates a new Client targeting baseURL.
 func New(baseURL string, opts ...Option) *Client {
 	c := &Client{
-		baseURL: baseURL,
-		http:    &http.Client{Timeout: 30 * time.Second},
-		headers: map[string]string{},
+		baseURL:    baseURL,
+		http:       &http.Client{Timeout: 30 * time.Second},
+		headers:    map[string]string{},
+		maxRetries: 2,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -96,6 +116,29 @@ func (c *Client) Delete(ctx context.Context, path string, out any) error {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	attempts := 1
+	if method == http.MethodGet && c.maxRetries > 0 {
+		attempts = c.maxRetries + 1
+	}
+
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		if i > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(i) * 100 * time.Millisecond):
+			}
+		}
+		lastErr = c.doOnce(ctx, method, path, body, out)
+		if lastErr == nil || !IsRetriable(lastErr) || method != http.MethodGet {
+			return lastErr
+		}
+	}
+	return lastErr
+}
+
+func (c *Client) doOnce(ctx context.Context, method, path string, body, out any) error {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -116,6 +159,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	propagateHeaders(ctx, req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -133,7 +177,6 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 
 	if out != nil && len(respBody) > 0 {
-		// Support both raw body and {"data": ...} envelope
 		var envelope struct {
 			Data json.RawMessage `json:"data"`
 		}
@@ -147,4 +190,19 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		}
 	}
 	return nil
+}
+
+func propagateHeaders(ctx context.Context, req *http.Request) {
+	if id := httputil.GetRequestID(ctx); id != "" {
+		req.Header.Set(HeaderRequestID, id)
+	}
+	if id := httputil.GetUserID(ctx); id != "" {
+		req.Header.Set(HeaderUserID, id)
+	}
+	if id := httputil.GetOrganizationID(ctx); id != "" {
+		req.Header.Set(HeaderOrganizationID, id)
+	}
+	if tp, ok := ctx.Value(httputil.CtxTraceParent).(string); ok && tp != "" {
+		req.Header.Set(HeaderTraceParent, tp)
+	}
 }

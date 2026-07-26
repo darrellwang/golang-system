@@ -46,6 +46,24 @@ func (m *mockOrderRepo) Update(_ context.Context, o *domain.Order) error {
 	return nil
 }
 
+func (m *mockOrderRepo) ListPendingIDsByItemID(_ context.Context, itemID string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var ids []string
+	for _, o := range m.items {
+		if o.Status != domain.OrderStatusPending {
+			continue
+		}
+		for _, it := range o.Items {
+			if it.ItemID == itemID {
+				ids = append(ids, o.ID)
+				break
+			}
+		}
+	}
+	return ids, nil
+}
+
 type errNF struct{ id string }
 
 func (e errNF) Error() string { return "not found: " + e.id }
@@ -62,9 +80,15 @@ func (mockItemClient) GetByID(_ context.Context, id string) (*domain.ItemView, e
 	return &domain.ItemView{ID: id, Name: "n", Status: "active"}, nil
 }
 
+type noopTx struct{}
+
+func (noopTx) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 func newSvc() (OrderService, *mockOrderRepo) {
 	repo := &mockOrderRepo{items: map[string]*domain.Order{}}
-	return NewOrderService(repo, mockPub{}, mockItemClient{}, zerolog.Nop()), repo
+	return NewOrderService(repo, mockPub{}, mockItemClient{}, noopTx{}, zerolog.Nop()), repo
 }
 
 func TestCreateOrder(t *testing.T) {

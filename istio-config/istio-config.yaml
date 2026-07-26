@@ -69,14 +69,20 @@ spec:
     - name: istio-egressgateway
       enabled: false
   
+  # meshConfig belongs at spec.meshConfig (not under values).
+  meshConfig:
+    enableTracing: true
+    accessLogFile: /dev/stdout
+    accessLogEncoding: JSON
+    defaultConfig:
+      tracing:
+        zipkin:
+          address: zipkin.istio-system:9411
+
   # 全局配置
   values:
     # 全局设置
     global:
-      # mTLS 模式
-      mtls:
-        enabled: true
-      
       # 网络配置
       network: ""
       
@@ -118,7 +124,7 @@ spec:
       injectedAnnotations:
         traffic.sidecar.istio.io/includeInboundPorts: "*"
         traffic.sidecar.istio.io/includeOutboundIPRanges: "*"
-        traffic.sidecar.istio.io/excludeOutboundPorts: "443"
+
     
     # 遥测配置
     telemetry:
@@ -204,40 +210,3 @@ spec:
       graph:
         vendor: kiali
     
-    # CNI 网络配置
-    meshConfig:
-      enableTracing: true
-      accessLogFile: /dev/stdout
-      accessLogEncoding: JSON
-      accessLogFormat: |
-        [%START_TIME%] "%REQ(:METHOD)%" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION%
-        "%REQ(X-FORWARDED-FOR)%" "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%"
-      
-      # 扩展配置
-      defaultConfig:
-        tracing:
-          zipkin:
-            address: zipkin.istio-system:9411
-        proxyStatsMatcher:
-          inclusionRegexps:
-          - ".*circuit_breakers.*"
-          - ".*upstream_rq_retry.*"
-          - ".*outlier_detection.*"
-        envoyMetricsService:
-          address: metrics-service:15000
-          tlsSettings:
-            mode: ISTIO_MUTUAL
-      
-      # 启用服务发现
-      serviceDiscovery:
-        enabled: true
-      
-      # 启用熔断检测
-      outlierDetection:
-        enabled: true
-        consecutiveGatewayErrors: 5
-        consecutive5xxErrors: 5
-        interval: 30s
-        baseEjectionTime: 30s
-        maxEjectionPercent: 50
-        minHealthPercent: 30

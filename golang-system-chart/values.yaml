@@ -8,8 +8,10 @@ golangApp:
     tag: latest
     pullPolicy: Always
   replicaCount: 2
+  version: v1
   service:
-    port: 80
+    # ClusterIP port matches app listen port for in-mesh DNS (golang-app:8080).
+    port: 8080
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits:   { cpu: 500m, memory: 512Mi }
@@ -20,14 +22,17 @@ golangApp:
     targetCPUUtilizationPercentage: 80
   config:
     appPort: 8080
+    appMode: PROD
     logLevel: info
+    # Align with docker-compose local defaults for consistency.
     dbHost: postgres-app
     dbPort: 5432
-    dbName: golang-app
-    dbUser: app
+    dbName: app_db
+    dbUser: app_user
     dbSslmode: disable
     natsUrl: nats://nats:4222
     queueGroup: golang-app-queue
+    corsAllowedOrigins: "https://app.example.com"
 
 golangApp2:
   image:
@@ -35,8 +40,9 @@ golangApp2:
     tag: latest
     pullPolicy: Always
   replicaCount: 2
+  version: v1
   service:
-    port: 80
+    port: 8081
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits:   { cpu: 500m, memory: 512Mi }
@@ -47,34 +53,39 @@ golangApp2:
     targetCPUUtilizationPercentage: 80
   config:
     appPort: 8081
+    appMode: PROD
     logLevel: info
     dbHost: postgres-app2
     dbPort: 5432
-    dbName: golang-app2
-    dbUser: app2
+    dbName: app2_db
+    dbUser: app2_user
     dbSslmode: disable
     natsUrl: nats://nats:4222
     queueGroup: golang-app2-queue
     itemServiceUrl: http://golang-app:8080
+    corsAllowedOrigins: "https://app.example.com"
 
 postgresApp:
   enabled: true
   image: postgres:16-alpine
   port: 5432
-  db: golang-app
-  user: app
+  db: app_db
+  user: app_user
+  # Override via --set or Secret; do not commit real production passwords.
   password: change-me
   persistence:
+    enabled: true
     size: 8Gi
 
 postgresApp2:
   enabled: true
   image: postgres:16-alpine
   port: 5432
-  db: golang-app2
-  user: app2
+  db: app2_db
+  user: app2_user
   password: change-me
   persistence:
+    enabled: true
     size: 8Gi
 
 nats:
@@ -85,13 +96,9 @@ nats:
     enabled: true
     size: 5Gi
 
-networkPolicy:
-  enabled: true
-  ingress:
-    - from: [app, app2]
-
+# Prefer Istio Gateway for ingress; keep nginx Ingress disabled.
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations: {}
   hosts:
@@ -99,12 +106,11 @@ ingress:
       paths:
         - path: /rest/v1/items
           service: golang-app
+          port: 8080
         - path: /rest/v1/orders
           service: golang-app2
+          port: 8081
   tls: []
 
-cors:
-  enabled: true
-  allowedOrigins: ["https://app.example.com"]
-  allowedMethods: [GET, POST, PATCH, DELETE, OPTIONS]
-  allowedHeaders: [Content-Type, X-Request-ID, X-Organization-ID, X-User-ID]
+networkPolicy:
+  enabled: false

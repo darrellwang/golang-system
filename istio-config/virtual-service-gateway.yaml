@@ -26,152 +26,86 @@ spec:
   # - mesh                 # 如果需要内部服务也走这些规则, 取消注释
   
   # HTTP 路由规则
+  # Retries only on idempotent GET; write methods have timeout but no retries.
   http:
-  # ============================================
-  # 路由 1: Item 服务 (golang-app)
-  # ============================================
-  - name: "items-route"
+  - name: "items-get-route"
     match:
-    # 路径前缀匹配
     - uri:
         prefix: /rest/v1/items
-    # 可选: 按请求头匹配
-    # - headers:
-    #     x-api-version:
-    #       exact: "v1"
-    # 可选: 按请求参数匹配
-    # - queryParams:
-    #     version:
-    #       exact: "v1"
-    
+      method:
+        exact: GET
     route:
-    # 主版本路由
     - destination:
         host: golang-app
         port:
           number: 8080
-        subset: v1  # 对应 DestinationRule 中的 subset
-      weight: 100   # 100% 流量
-    
-    # 路由到 v2 (金丝雀发布, 可选)
-    # - destination:
-    #     host: golang-app
-    #     port:
-    #       number: 8080
-    #     subset: v2
-    #   weight: 10   # 10% 流量
-    
-    # ============================================
-    # CORS 配置 (跨域资源共享)
-    # ============================================
+        subset: v1
+      weight: 100
     corsPolicy:
-      # 允许的源 (支持正则)
       allowOrigins:
       - regex: "https://.*\\.example\\.com"
       - exact: "http://localhost:3000"
-      - exact: "http://localhost:8080"
-      
-      # 允许的方法
-      allowMethods:
-      - GET
-      - POST
-      - PUT
-      - PATCH
-      - DELETE
-      - OPTIONS
-      - HEAD
-      
-      # 允许的请求头
+      allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD]
       allowHeaders:
       - Content-Type
       - Authorization
       - X-Request-ID
       - X-Organization-ID
       - X-User-ID
-      - X-API-Key
       - Accept
       - Origin
-      - User-Agent
-      
-      # 暴露的响应头
-      exposeHeaders:
-      - X-Request-ID
-      - X-Rate-Limit-Limit
-      - X-Rate-Limit-Remaining
-      - X-Rate-Limit-Reset
-      
-      # 允许携带凭证 (Cookie, Authorization)
       allowCredentials: true
-      
-      # 预检请求缓存时间
       maxAge: 24h
-    
-    # ============================================
-    # 超时和重试配置
-    # ============================================
-    
-    # 请求超时
     timeout: 30s
-    
-    # 重试策略
     retries:
-      attempts: 3              # 最大重试次数
-      perTryTimeout: 10s       # 单次重试超时
-      retryOn: "5xx,connect-failure,refused-stream,gateway-error,envoy-ratelimited,retriable-status-codes"
-      # retriable-status-codes:
-      # - 429  # 429 Too Many Requests 也可重试
-    
-    # ============================================
-    # 故障注入 (测试用)
-    # ============================================
-    # 延迟注入 (测试超时)
-    # fault:
-    #   delay:
-    #     percentage:
-    #       value: 10  # 10% 请求延迟
-    #     fixedDelay: 5s
-    
-    # 错误注入 (测试熔断)
-    # fault:
-    #   abort:
-    #     percentage:
-    #       value: 5   # 5% 请求返回错误
-    #     httpStatus: 500
-    
-    # ============================================
-    # 请求/响应头操作
-    # ============================================
-    
-    # 添加请求头
-    # headers:
-    #   request:
-    #     set:
-    #       x-gateway: "istio-ingressgateway"
-    #       x-environment: "production"
-    
-    # 添加响应头
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: "5xx,connect-failure,refused-stream,gateway-error,reset"
     headers:
       response:
         set:
-          x-powered-by: "golang-system"
           x-service: "golang-app"
-    
-    # ============================================
-    # 流量镜像 (Shadow Traffic, 可选)
-    # ============================================
-    # mirror:
-    #   host: golang-app
-    #   subset: v2
-    # mirrorPercent: 10  # 10% 流量镜像到 v2
-  
-  # ============================================
-  # 路由 2: Order 服务 (golang-app2)
-  # ============================================
-  - name: "orders-route"
+
+  - name: "items-write-route"
+    match:
+    - uri:
+        prefix: /rest/v1/items
+    route:
+    - destination:
+        host: golang-app
+        port:
+          number: 8080
+        subset: v1
+      weight: 100
+    corsPolicy:
+      allowOrigins:
+      - regex: "https://.*\\.example\\.com"
+      - exact: "http://localhost:3000"
+      allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD]
+      allowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+      - X-Organization-ID
+      - X-User-ID
+      - Accept
+      - Origin
+      allowCredentials: true
+      maxAge: 24h
+    timeout: 30s
+    retries:
+      attempts: 0
+    headers:
+      response:
+        set:
+          x-service: "golang-app"
+
+  - name: "orders-get-route"
     match:
     - uri:
         prefix: /rest/v1/orders
-    
+      method:
+        exact: GET
     route:
     - destination:
         host: golang-app2
@@ -179,18 +113,11 @@ spec:
           number: 8081
         subset: v1
       weight: 100
-    
     corsPolicy:
       allowOrigins:
       - regex: "https://.*\\.example\\.com"
       - exact: "http://localhost:3000"
-      allowMethods:
-      - GET
-      - POST
-      - PUT
-      - PATCH
-      - DELETE
-      - OPTIONS
+      allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
       allowHeaders:
       - Content-Type
       - Authorization
@@ -199,17 +126,46 @@ spec:
       - X-User-ID
       allowCredentials: true
       maxAge: 24h
-    
     timeout: 30s
     retries:
       attempts: 3
       perTryTimeout: 10s
-      retryOn: "5xx,connect-failure,refused-stream,gateway-error"
-    
+      retryOn: "5xx,connect-failure,refused-stream,gateway-error,reset"
     headers:
       response:
         set:
-          x-powered-by: "golang-system"
+          x-service: "golang-app2"
+
+  - name: "orders-write-route"
+    match:
+    - uri:
+        prefix: /rest/v1/orders
+    route:
+    - destination:
+        host: golang-app2
+        port:
+          number: 8081
+        subset: v1
+      weight: 100
+    corsPolicy:
+      allowOrigins:
+      - regex: "https://.*\\.example\\.com"
+      - exact: "http://localhost:3000"
+      allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      allowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+      - X-Organization-ID
+      - X-User-ID
+      allowCredentials: true
+      maxAge: 24h
+    timeout: 30s
+    retries:
+      attempts: 0
+    headers:
+      response:
+        set:
           x-service: "golang-app2"
   
   # ============================================

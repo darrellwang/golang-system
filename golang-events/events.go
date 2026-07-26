@@ -32,9 +32,13 @@ type Event[T any] struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type"`
 	Source    string    `json:"source"`
+	Version   string    `json:"version"`
 	Timestamp time.Time `json:"timestamp"`
 	Data      T         `json:"data"`
 }
+
+// SchemaVersion is the current event envelope schema version.
+const SchemaVersion = "1"
 
 // ============================================================
 // Item event payloads

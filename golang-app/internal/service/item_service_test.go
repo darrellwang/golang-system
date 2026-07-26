@@ -54,11 +54,17 @@ func (mockPublisher) PublishItemCreated(_ context.Context, _ *domain.Item) error
 func (mockPublisher) PublishItemUpdated(_ context.Context, _ *domain.Item) error { return nil }
 func (mockPublisher) PublishItemDeleted(_ context.Context, _ string) error       { return nil }
 
+type noopTx struct{}
+
+func (noopTx) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 // --- Tests ---
 
 func newSvc() (ItemService, *mockRepo) {
 	repo := &mockRepo{items: map[string]*domain.Item{}}
-	return NewItemService(repo, mockPublisher{}, zerolog.Nop()), repo
+	return NewItemService(repo, mockPublisher{}, noopTx{}, zerolog.Nop()), repo
 }
 
 func TestCreateItem_Success(t *testing.T) {

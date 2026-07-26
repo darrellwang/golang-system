@@ -45,14 +45,8 @@ check_dependencies() {
 install_istio() {
     log_info "开始安装 Istio..."
     
-    # 检查 Istio 是否已安装
-    if kubectl get namespace istio-system &> /dev/null; then
-        log_warn "Istio 已安装，跳过安装步骤"
-        return
-    fi
-    
-    # 安装 Istio
-    log_info "使用配置文件安装 Istio..."
+    # 安装或升级 Istio（已安装时仍 apply 配置，避免配置变更被跳过）
+    log_info "使用配置文件安装/升级 Istio..."
     istioctl install -f istio-config/istio-config.yaml -y
     
     # 等待 Istio 组件就绪
@@ -71,13 +65,7 @@ install_istio() {
 deploy_microservices() {
     log_info "开始部署微服务..."
     
-    # 检查 Helm Chart 依赖
-    log_info "更新 Helm Chart 依赖..."
-    cd golang-system-chart
-    helm dependency update
-    cd ..
-    
-    # 部署或更新微服务
+    # 部署或更新微服务（chart 无 subchart 依赖，无需 helm dependency update）
     log_info "部署微服务 (golang-app, golang-app2)..."
     helm upgrade --install golang-system ./golang-system-chart \
         --namespace default \
@@ -88,8 +76,8 @@ deploy_microservices() {
     
     # 等待 Pod 就绪 (包括 Istio sidecar)
     log_info "等待微服务 Pod 就绪 (包括 Istio sidecar)..."
-    kubectl rollout status deployment/golang-app -n default
-    kubectl rollout status deployment/golang-app2 -n default
+    kubectl rollout status deployment/golang-app -n default --timeout=5m
+    kubectl rollout status deployment/golang-app2 -n default --timeout=5m
     
     # 验证 Sidecar 注入
     log_info "验证 Sidecar 注入..."
@@ -103,10 +91,14 @@ deploy_microservices() {
 configure_service_governance() {
     log_info "开始配置服务治理..."
     
-    # 应用熔断配置
-    log_info "应用熔断配置..."
+    # 应用熔断 / 负载均衡 DestinationRule
+    log_info "应用 DestinationRule..."
     kubectl apply -f istio-config/destination-rule-circuit-breaking.yaml
-    
+
+    # 强制 mTLS
+    log_info "应用 PeerAuthentication..."
+    kubectl apply -f istio-config/peer-authentication.yaml
+
     # 应用限流配置
     log_info "应用限流配置..."
     kubectl apply -f istio-config/envoy-filter-rate-limiting.yaml

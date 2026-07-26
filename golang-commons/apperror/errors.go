@@ -42,6 +42,14 @@ func NewConflict(message string) *AppError {
 	return &AppError{Code: http.StatusConflict, Message: message}
 }
 
+func NewBadGateway(message string) *AppError {
+	return &AppError{Code: http.StatusBadGateway, Message: message}
+}
+
+func NewUnavailable(message string) *AppError {
+	return &AppError{Code: http.StatusServiceUnavailable, Message: message}
+}
+
 // NotFound / BadInput / Internal / Conflict with wrapped cause
 func NotFound(message string, err error) *AppError {
 	return &AppError{Code: http.StatusNotFound, Message: message, Err: err}
@@ -57,6 +65,14 @@ func Internal(message string, err error) *AppError {
 
 func Conflict(message string, err error) *AppError {
 	return &AppError{Code: http.StatusConflict, Message: message, Err: err}
+}
+
+func BadGateway(message string, err error) *AppError {
+	return &AppError{Code: http.StatusBadGateway, Message: message, Err: err}
+}
+
+func Unavailable(message string, err error) *AppError {
+	return &AppError{Code: http.StatusServiceUnavailable, Message: message, Err: err}
 }
 
 // IsAppError extracts *AppError from an error chain.

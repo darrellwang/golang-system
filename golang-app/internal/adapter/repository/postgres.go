@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/darrell/golang-system/golang-commons/database"
 	"github.com/darrell/golang-system/golang-app/internal/domain"
 )
 
@@ -26,7 +27,7 @@ func (r *ItemPostgres) Create(ctx context.Context, item *domain.Item) error {
 	const q = `
 		INSERT INTO items (id, name, description, status, tags, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err := r.pool.Exec(ctx, q, item.ID, item.Name, item.Description, item.Status, item.Tags, item.CreatedAt, item.UpdatedAt)
+	_, err := database.Conn(ctx, r.pool).Exec(ctx, q, item.ID, item.Name, item.Description, item.Status, item.Tags, item.CreatedAt, item.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("insert item: %w", err)
 	}
@@ -37,7 +38,7 @@ func (r *ItemPostgres) GetByID(ctx context.Context, id string) (*domain.Item, er
 	const q = `SELECT id, name, description, status, tags, created_at, updated_at FROM items WHERE id = $1`
 	item := &domain.Item{}
 	var tags []string
-	err := r.pool.QueryRow(ctx, q, id).Scan(
+	err := database.Conn(ctx, r.pool).QueryRow(ctx, q, id).Scan(
 		&item.ID, &item.Name, &item.Description, &item.Status, &tags, &item.CreatedAt, &item.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -51,12 +52,14 @@ func (r *ItemPostgres) GetByID(ctx context.Context, id string) (*domain.Item, er
 }
 
 func (r *ItemPostgres) List(ctx context.Context, offset, limit int, status string) ([]*domain.Item, int, error) {
+	q := database.Conn(ctx, r.pool)
 	var total int
-	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM items WHERE ($1 = '' OR status = $1)`, status).Scan(&total); err != nil {
+	if err := q.QueryRow(ctx, `SELECT COUNT(*) FROM items WHERE ($1 = '' OR status = $1)`, status).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count items: %w", err)
 	}
-	q := `SELECT id, name, description, status, tags, created_at, updated_at FROM items WHERE ($1 = '' OR status = $1) ORDER BY created_at DESC LIMIT $2 OFFSET $3`
-	rows, err := r.pool.Query(ctx, q, status, limit, offset)
+	rows, err := q.Query(ctx,
+		`SELECT id, name, description, status, tags, created_at, updated_at FROM items WHERE ($1 = '' OR status = $1) ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		status, limit, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list items: %w", err)
 	}
@@ -71,12 +74,15 @@ func (r *ItemPostgres) List(ctx context.Context, offset, limit int, status strin
 		it.Tags = tags
 		out = append(out, it)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("list items rows: %w", err)
+	}
 	return out, total, nil
 }
 
 func (r *ItemPostgres) Update(ctx context.Context, item *domain.Item) error {
 	const q = `UPDATE items SET name=$1, description=$2, status=$3, tags=$4, updated_at=$5 WHERE id=$6`
-	_, err := r.pool.Exec(ctx, q, item.Name, item.Description, item.Status, item.Tags, item.UpdatedAt, item.ID)
+	_, err := database.Conn(ctx, r.pool).Exec(ctx, q, item.Name, item.Description, item.Status, item.Tags, item.UpdatedAt, item.ID)
 	if err != nil {
 		return fmt.Errorf("update item: %w", err)
 	}
@@ -84,7 +90,7 @@ func (r *ItemPostgres) Update(ctx context.Context, item *domain.Item) error {
 }
 
 func (r *ItemPostgres) Delete(ctx context.Context, id string) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM items WHERE id=$1`, id)
+	_, err := database.Conn(ctx, r.pool).Exec(ctx, `DELETE FROM items WHERE id=$1`, id)
 	if err != nil {
 		return fmt.Errorf("delete item: %w", err)
 	}
