@@ -40,6 +40,11 @@ type Config struct {
 	CORSAllowedMethods []string
 	CORSAllowedHeaders []string
 	CORSAllowCredentials bool
+
+	// AuthTrustHeaders allows X-User-ID fallback when JWT claim headers are absent.
+	AuthTrustHeaders bool
+	// AuthRequireJWT rejects REST requests with no authenticated user in context.
+	AuthRequireJWT bool
 }
 
 // Load reads configuration from environment variables.
@@ -67,6 +72,16 @@ func Load() *Config {
 		CORSAllowedMethods:   envStrSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}),
 		CORSAllowedHeaders:   envStrSlice("CORS_ALLOWED_HEADERS", []string{"*"}),
 		CORSAllowCredentials: envBool("CORS_ALLOW_CREDENTIALS", false),
+
+		// DEV defaults trust headers for local curl; PROD chart sets AuthTrustHeaders=false.
+		AuthTrustHeaders: envBool("AUTH_TRUST_HEADERS", true),
+		AuthRequireJWT:   envBool("AUTH_REQUIRE_JWT", false),
+	}
+	if cfg.AppMode == "PROD" && os.Getenv("AUTH_TRUST_HEADERS") == "" {
+		cfg.AuthTrustHeaders = false
+	}
+	if cfg.AppMode == "PROD" && os.Getenv("AUTH_REQUIRE_JWT") == "" {
+		cfg.AuthRequireJWT = true
 	}
 	cfg.validateSecurityDefaults()
 	return cfg

@@ -88,6 +88,10 @@ spec:
               value: {{ .Values.golangApp.config.queueGroup | quote }}
             - name: CORS_ALLOWED_ORIGINS
               value: {{ .Values.golangApp.config.corsAllowedOrigins | quote }}
+            - name: AUTH_TRUST_HEADERS
+              value: {{ .Values.golangApp.config.authTrustHeaders | quote }}
+            - name: AUTH_REQUIRE_JWT
+              value: {{ .Values.golangApp.config.authRequireJwt | quote }}
           livenessProbe:
             httpGet:
               path: /admin/health/liveness
@@ -213,6 +217,10 @@ spec:
               value: {{ .Values.golangApp2.config.itemServiceUrl | quote }}
             - name: CORS_ALLOWED_ORIGINS
               value: {{ .Values.golangApp2.config.corsAllowedOrigins | quote }}
+            - name: AUTH_TRUST_HEADERS
+              value: {{ .Values.golangApp2.config.authTrustHeaders | quote }}
+            - name: AUTH_REQUIRE_JWT
+              value: {{ .Values.golangApp2.config.authRequireJwt | quote }}
           livenessProbe:
             httpGet:
               path: /admin/health/liveness

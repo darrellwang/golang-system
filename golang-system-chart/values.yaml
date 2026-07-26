@@ -33,6 +33,9 @@ golangApp:
     natsUrl: nats://nats:4222
     queueGroup: golang-app-queue
     corsAllowedOrigins: "https://app.example.com"
+    # Behind Istio JWT gateway: do not trust client X-User-ID; require claim headers.
+    authTrustHeaders: false
+    authRequireJwt: true
 
 golangApp2:
   image:
@@ -64,6 +67,8 @@ golangApp2:
     queueGroup: golang-app2-queue
     itemServiceUrl: http://golang-app:8080
     corsAllowedOrigins: "https://app.example.com"
+    authTrustHeaders: false
+    authRequireJwt: true
 
 postgresApp:
   enabled: true

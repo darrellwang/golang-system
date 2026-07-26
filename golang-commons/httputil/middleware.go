@@ -19,6 +19,8 @@ const (
 	CtxRequestID ctxKey = iota + 1
 	CtxUserID
 	CtxOrganizationID
+	CtxUserEmail
+	CtxAuthorization
 	CtxTraceParent
 )
 
@@ -145,18 +147,62 @@ func LoggingMiddleware(log zerolog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// AuthContextMiddleware extracts user/organization IDs from headers into context.
-// Note: headers are trusted only behind a gateway that authenticates the caller.
-func AuthContextMiddleware(next http.Handler) http.Handler {
+// AuthConfig controls how identity is derived from inbound headers.
+type AuthConfig struct {
+	// TrustHeaders allows falling back to client-supplied X-User-ID /
+	// X-Organization-ID when JWT claim headers are absent. Disable in
+	// production behind a JWT-enforcing gateway.
+	TrustHeaders bool
+}
+
+// AuthContextMiddleware extracts identity into context.
+// Prefer Istio JWT claim headers (x-jwt-sub / x-jwt-org) over forgeable
+// X-User-ID headers.
+func AuthContextMiddleware(cfg *AuthConfig) func(http.Handler) http.Handler {
+	if cfg == nil {
+		cfg = &AuthConfig{TrustHeaders: true}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			userID := r.Header.Get("x-jwt-sub")
+			if userID == "" && cfg.TrustHeaders {
+				userID = r.Header.Get("X-User-ID")
+			}
+			if userID != "" {
+				ctx = context.WithValue(ctx, CtxUserID, userID)
+			}
+
+			orgID := r.Header.Get("x-jwt-org")
+			if orgID == "" && cfg.TrustHeaders {
+				orgID = r.Header.Get("X-Organization-ID")
+			}
+			if orgID != "" {
+				ctx = context.WithValue(ctx, CtxOrganizationID, orgID)
+			}
+
+			if email := r.Header.Get("x-jwt-email"); email != "" {
+				ctx = context.WithValue(ctx, CtxUserEmail, email)
+			}
+			if auth := r.Header.Get("Authorization"); auth != "" {
+				ctx = context.WithValue(ctx, CtxAuthorization, auth)
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RequireAuthenticated rejects requests that have no authenticated user in context.
+// Use on REST route groups when AUTH_REQUIRE_JWT=true (defense in depth behind the gateway).
+func RequireAuthenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		if orgID := r.Header.Get("X-Organization-ID"); orgID != "" {
-			ctx = context.WithValue(ctx, CtxOrganizationID, orgID)
+		if GetUserID(r.Context()) == "" {
+			Error(w, apperror.NewUnauthorized("authentication required"))
+			return
 		}
-		if userID := r.Header.Get("X-User-ID"); userID != "" {
-			ctx = context.WithValue(ctx, CtxUserID, userID)
-		}
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -217,6 +263,22 @@ func GetUserID(ctx context.Context) string {
 // GetOrganizationID retrieves the organization ID from context.
 func GetOrganizationID(ctx context.Context) string {
 	if v, ok := ctx.Value(CtxOrganizationID).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetUserEmail retrieves the email claim from context when present.
+func GetUserEmail(ctx context.Context) string {
+	if v, ok := ctx.Value(CtxUserEmail).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetAuthorization retrieves the original Authorization header from context.
+func GetAuthorization(ctx context.Context) string {
+	if v, ok := ctx.Value(CtxAuthorization).(string); ok {
 		return v
 	}
 	return ""

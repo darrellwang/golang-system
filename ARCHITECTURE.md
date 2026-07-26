@@ -62,7 +62,9 @@
 | 路由 | `VirtualService`：GET 可重试，写方法 `retries.attempts: 0` | `virtual-service-gateway.yaml` |
 | 熔断+LB | **每 host 单一** `DestinationRule`（LEAST_REQUEST + outlierDetection + subsets） | `destination-rule-circuit-breaking.yaml` |
 | mTLS | `PeerAuthentication` STRICT（default ns）+ DR `ISTIO_MUTUAL` | `peer-authentication.yaml` |
-| 限流 | `EnvoyFilter` 本地令牌桶 | `envoy-filter-rate-limiting.yaml` |
+| 限流（本地） | Sidecar `LocalRateLimit`（RuntimeFractionalPercent） | `envoy-filter-rate-limiting.yaml` |
+| 限流（全局） | IngressGateway → Redis + `envoyproxy/ratelimit` | `global-rate-limiting.yaml` |
+| JWT 鉴权 | Gateway `RequestAuthentication` + `AuthorizationPolicy`；claim → `x-jwt-*` | `jwt-authentication.yaml` |
 | meshConfig | `spec.meshConfig`（access log / tracing） | `istio-config.yaml` |
 
 ### 3. 业务服务层 — 六角架构微服务
@@ -70,6 +72,7 @@
 - **golang-app** (Item，:8080)：REST `/rest/v1/items`；领域写操作与 outbox 同事务；JetStream 发布 `item.*`。
 - **golang-app2** (Order，:8081)：REST `/rest/v1/orders`；`item_client` 同步查 Item（透传 `X-Request-ID` 等，GET 有限重试，错误按状态码映射）；`item.deleted` 按 DB `order_items` 查 pending 订单自动取消（无进程内 map）。
 - 共用：`/metrics`、CORS（按 Origin 白名单）、HTTP Server 超时、`/admin/health/liveness|readiness`（readiness 含 DB + NATS）。
+- 鉴权：网关强制 JWT；应用优先读 `x-jwt-sub/org`，PROD 默认 `AUTH_TRUST_HEADERS=false` + `AUTH_REQUIRE_JWT=true`；东西向由 `httpclient` 透传 claim / Authorization。
 
 ### 4. 数据与消息层
 
@@ -93,8 +96,8 @@
 ### 南北向
 
 ```
-Client → IngressGateway:443 (TLS 终止, Secret 在 istio-system)
-       → VirtualService → sidecar (限流→熔断→mTLS) → 业务容器
+Client → IngressGateway:443 (TLS + JWT 校验 + 全局限流)
+       → VirtualService → sidecar (本地限流→熔断→mTLS) → 业务容器
 ```
 
 ### 东西向
@@ -113,13 +116,14 @@ Client → IngressGateway:443 (TLS 终止, Secret 在 istio-system)
 
 本地依赖：`docker-compose.yml`（PostgreSQL × 2 + NATS JetStream）。
 
-应用环境变量（与 Chart 对齐）：`APP_PORT`、`DB_*`、`NATS_URL`、`QUEUE_GROUP`、`ITEM_SERVICE_URL`（仅 app2）。
+应用环境变量（与 Chart 对齐）：`APP_PORT`、`DB_*`、`NATS_URL`、`QUEUE_GROUP`、`ITEM_SERVICE_URL`（仅 app2）、`AUTH_TRUST_HEADERS`、`AUTH_REQUIRE_JWT`。
+
+联调 JWT：见 `istio-config/jwt/README.md`（`mint-dev-jwt.py`）。生产请把 `jwt-authentication.yaml` 中的 inline JWKS 换成真实 IdP 的 `jwksUri`。
 
 ## 已知限制
 
-1. EnvoyFilter 全局限流（Redis ratelimit）仍为可选/半成品，本地限流为主。
-2. 网关未强制 JWT；`X-User-ID` 仅在受信任网关后使用，生产需加 RequestAuthentication。
-3. Postgres/NATS 为 chart 内单副本有状态部署，生产建议托管服务或 Operator。
+1. Postgres/NATS/Redis/ratelimit 为 chart/清单内单副本有状态部署，生产建议托管服务或 Operator。
+2. Dev JWT 私钥仅供联调，切勿用于生产。
 
 ## 目录结构速查
 
@@ -130,6 +134,7 @@ Client → IngressGateway:443 (TLS 终止, Secret 在 istio-system)
 | `golang-events/` | 事件契约 |
 | `golang-commons/` | 共享库 |
 | `golang-system-chart/` | 统一 Helm Chart |
-| `istio-config/` | Istio 治理配置 |
+| `istio-config/` | Istio 治理配置（含 JWT / 全局限流） |
+| `istio-config/jwt/` | Dev JWKS + 签发脚本 |
 | `deploy-istio.sh` | 一键部署脚本 |
 | `docker-compose.yml` | 本地依赖 |
