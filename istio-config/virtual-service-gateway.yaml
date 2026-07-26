@@ -1,0 +1,404 @@
+# ============================================
+# API 网关路由配置 - VirtualService
+# 定义流量路由规则、CORS、超时、重试等
+# ============================================
+
+---
+# Golang System API 路由规则
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: golang-system-routes
+  namespace: default
+  labels:
+    app: golang-system
+    component: api-gateway
+spec:
+  # 绑定的主机名 (与 Gateway 配置匹配)
+  hosts:
+  - "api.example.com"
+  - "*.example.com"
+  - "localhost"
+  
+  # 绑定的 Gateway
+  gateways:
+  - golang-system-gateway  # 与 Gateway 元数据名称对应
+  # - mesh                 # 如果需要内部服务也走这些规则, 取消注释
+  
+  # HTTP 路由规则
+  http:
+  # ============================================
+  # 路由 1: Item 服务 (golang-app)
+  # ============================================
+  - name: "items-route"
+    match:
+    # 路径前缀匹配
+    - uri:
+        prefix: /rest/v1/items
+    # 可选: 按请求头匹配
+    # - headers:
+    #     x-api-version:
+    #       exact: "v1"
+    # 可选: 按请求参数匹配
+    # - queryParams:
+    #     version:
+    #       exact: "v1"
+    
+    route:
+    # 主版本路由
+    - destination:
+        host: golang-app
+        port:
+          number: 8080
+        subset: v1  # 对应 DestinationRule 中的 subset
+      weight: 100   # 100% 流量
+    
+    # 路由到 v2 (金丝雀发布, 可选)
+    # - destination:
+    #     host: golang-app
+    #     port:
+    #       number: 8080
+    #     subset: v2
+    #   weight: 10   # 10% 流量
+    
+    # ============================================
+    # CORS 配置 (跨域资源共享)
+    # ============================================
+    corsPolicy:
+      # 允许的源 (支持正则)
+      allowOrigins:
+      - regex: "https://.*\\.example\\.com"
+      - exact: "http://localhost:3000"
+      - exact: "http://localhost:8080"
+      
+      # 允许的方法
+      allowMethods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+      - HEAD
+      
+      # 允许的请求头
+      allowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+      - X-Organization-ID
+      - X-User-ID
+      - X-API-Key
+      - Accept
+      - Origin
+      - User-Agent
+      
+      # 暴露的响应头
+      exposeHeaders:
+      - X-Request-ID
+      - X-Rate-Limit-Limit
+      - X-Rate-Limit-Remaining
+      - X-Rate-Limit-Reset
+      
+      # 允许携带凭证 (Cookie, Authorization)
+      allowCredentials: true
+      
+      # 预检请求缓存时间
+      maxAge: 24h
+    
+    # ============================================
+    # 超时和重试配置
+    # ============================================
+    
+    # 请求超时
+    timeout: 30s
+    
+    # 重试策略
+    retries:
+      attempts: 3              # 最大重试次数
+      perTryTimeout: 10s       # 单次重试超时
+      retryOn: "5xx,connect-failure,refused-stream,gateway-error,envoy-ratelimited,retriable-status-codes"
+      # retriable-status-codes:
+      # - 429  # 429 Too Many Requests 也可重试
+    
+    # ============================================
+    # 故障注入 (测试用)
+    # ============================================
+    # 延迟注入 (测试超时)
+    # fault:
+    #   delay:
+    #     percentage:
+    #       value: 10  # 10% 请求延迟
+    #     fixedDelay: 5s
+    
+    # 错误注入 (测试熔断)
+    # fault:
+    #   abort:
+    #     percentage:
+    #       value: 5   # 5% 请求返回错误
+    #     httpStatus: 500
+    
+    # ============================================
+    # 请求/响应头操作
+    # ============================================
+    
+    # 添加请求头
+    # headers:
+    #   request:
+    #     set:
+    #       x-gateway: "istio-ingressgateway"
+    #       x-environment: "production"
+    
+    # 添加响应头
+    headers:
+      response:
+        set:
+          x-powered-by: "golang-system"
+          x-service: "golang-app"
+    
+    # ============================================
+    # 流量镜像 (Shadow Traffic, 可选)
+    # ============================================
+    # mirror:
+    #   host: golang-app
+    #   subset: v2
+    # mirrorPercent: 10  # 10% 流量镜像到 v2
+  
+  # ============================================
+  # 路由 2: Order 服务 (golang-app2)
+  # ============================================
+  - name: "orders-route"
+    match:
+    - uri:
+        prefix: /rest/v1/orders
+    
+    route:
+    - destination:
+        host: golang-app2
+        port:
+          number: 8081
+        subset: v1
+      weight: 100
+    
+    corsPolicy:
+      allowOrigins:
+      - regex: "https://.*\\.example\\.com"
+      - exact: "http://localhost:3000"
+      allowMethods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+      allowHeaders:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+      - X-Organization-ID
+      - X-User-ID
+      allowCredentials: true
+      maxAge: 24h
+    
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: "5xx,connect-failure,refused-stream,gateway-error"
+    
+    headers:
+      response:
+        set:
+          x-powered-by: "golang-system"
+          x-service: "golang-app2"
+  
+  # ============================================
+  # 路由 3: 健康检查 (允许直接访问)
+  # ============================================
+  - name: "health-check-route"
+    match:
+    - uri:
+        prefix: /admin/health
+    - uri:
+        prefix: /health
+    
+    route:
+    - destination:
+        host: golang-app
+        port:
+          number: 8080
+    
+    # 健康检查不重试
+    retries:
+      attempts: 0
+    
+    # 短超时
+    timeout: 5s
+  
+  # ============================================
+  # 路由 4: 静态文件 (可选)
+  # ============================================
+  # - name: "static-files-route"
+  #   match:
+  #   - uri:
+  #       prefix: /static
+  #   route:
+  #   - destination:
+  #       host: static-files-service
+  #       port:
+  #         number: 80
+  
+  # ============================================
+  # 路由 5: API 文档 (Swagger, 可选)
+  # ============================================
+  - name: "api-docs-route"
+    match:
+    - uri:
+        prefix: /api-docs
+    - uri:
+        prefix: /swagger
+    route:
+    - destination:
+        host: golang-app
+        port:
+          number: 8080
+    corsPolicy:
+      allowOrigins:
+      - "*"
+      allowMethods:
+      - GET
+      - OPTIONS
+      allowHeaders:
+      - "*"
+  
+  # ============================================
+  # 默认路由 (404)
+  # ============================================
+  - name: "default-route"
+    route:
+    - destination:
+        host: golang-app
+        port:
+          number: 8080
+    
+    # 返回 404 (通过 Fault Injection)
+    fault:
+      abort:
+        percentage:
+          value: 100
+        httpStatus: 404
+    
+    # 或者转发到一个默认服务
+    # route:
+    # - destination:
+    #     host: default-backend
+    #     port:
+    #       number: 8080
+    
+    corsPolicy:
+      allowOrigins:
+      - "*"
+      allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+      allowHeaders:
+      - "*"
+
+---
+# ============================================
+# 内部服务路由 (可选)
+# 用于服务间通信
+# ============================================
+---
+# apiVersion: networking.istio.io/v1beta1
+# kind: VirtualService
+# metadata:
+#   name: golang-app-internal
+#   namespace: default
+# spec:
+#   hosts:
+#   - golang-app
+#   http:
+#   - match:
+#     - sourceLabels:
+#         app: golang-app2
+#     route:
+#     - destination:
+#         host: golang-app
+#         port:
+#           number: 8080
+
+---
+# ============================================
+# 基于用户身份的路由 (可选)
+# 用于 A/B 测试或灰度发布
+# ============================================
+---
+# apiVersion: networking.istio.io/v1beta1
+# kind: VirtualService
+# metadata:
+#   name: golang-app-ab-test
+#   namespace: default
+# spec:
+#   hosts:
+#   - golang-app
+#   http:
+#   # 路由到 v2 (A/B 测试)
+#   - match:
+#     - headers:
+#         x-user-type:
+#           exact: "beta"
+#     route:
+#     - destination:
+#         host: golang-app
+#         subset: v2
+#   
+#   # 默认路由到 v1
+#   - route:
+#     - destination:
+#         host: golang-app
+#         subset: v1
+
+---
+# ============================================
+# 使用说明
+# ============================================
+# 
+# 1. 应用配置:
+#    kubectl apply -f virtual-service-gateway.yaml
+# 
+# 2. 查看配置:
+#    kubectl get virtualservice
+#    kubectl describe virtualservice golang-system-routes
+# 
+# 3. 测试路由:
+#    # 获取 Ingress Gateway IP
+#    export INGRESS_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+#    export INGRESS_HOST=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+#    
+#    # 测试 Item 路由
+#    curl -v http://$INGRESS_IP/rest/v1/items -H "Host: api.example.com"
+#    curl -v https://api.example.com/rest/v1/items
+#    
+#    # 测试 Order 路由
+#    curl -v http://$INGRESS_IP/rest/v1/orders -H "Host: api.example.com"
+#    
+#    # 测试 CORS
+#    curl -v http://$INGRESS_IP/rest/v1/items \
+#      -H "Host: api.example.com" \
+#      -H "Origin: https://app.example.com" \
+#      -H "Access-Control-Request-Method: GET" \
+#      -X OPTIONS
+#    
+#    # 测试健康检查
+#    curl -v http://$INGRESS_IP/admin/health/liveness -H "Host: api.example.com"
+# 
+# 4. 查看路由配置:
+#    istioctl proxy-config route deployment/istio-ingressgateway -n istio-system
+# 
+# 5. 查看访问日志:
+#    kubectl logs -l app=istio-ingressgateway -n istio-system -c istio-proxy --tail=100
+# 
+# 6. 删除配置:
+#    kubectl delete -f virtual-service-gateway.yaml

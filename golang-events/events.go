@@ -9,9 +9,9 @@ import "time"
 
 const (
 	// Item events
-	SubjectItemCreated = "item.created"
-	SubjectItemUpdated = "item.updated"
-	SubjectItemDeleted = "item.deleted"
+	SubjectItemCreated       = "item.created"
+	SubjectItemUpdated       = "item.updated"
+	SubjectItemDeleted       = "item.deleted"
 	SubjectItemExternalCreate = "item.external.create"
 
 	// Item request-reply

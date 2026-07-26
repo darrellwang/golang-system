@@ -34,6 +34,8 @@ func (h *OrderHandler) Routes(r chi.Router) {
 
 func (h *OrderHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateOrderRequest
+	// Limit request body to 1 MiB to mitigate oversized-body DoS attempts.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.Error(w, err)
 		return
@@ -71,6 +73,8 @@ func (h *OrderHandler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *OrderHandler) update(w http.ResponseWriter, r *http.Request) {
 	var req domain.UpdateOrderRequest
+	// Limit request body to 1 MiB to mitigate oversized-body DoS attempts.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.Error(w, err)
 		return

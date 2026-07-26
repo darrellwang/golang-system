@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -9,6 +10,10 @@ import (
 
 // Version is injected at build time via -ldflags.
 var Version = "dev"
+
+// defaultDevDBPassword matches docker-compose.yml for local development only.
+// Production deployments must override it via the DB_PASSWORD env var.
+const defaultDevDBPassword = "app2_password"
 
 type Config struct {
 	AppPort        int
@@ -38,16 +43,18 @@ type Config struct {
 }
 
 func Load() *Config {
-	return &Config{
-		AppPort:        envInt("APP_PORT", 8081),
-		AppMode:        envStr("APP_MODE", "DEV"),
-		AppName:        envStr("APP_NAME", "golang-app2"),
-		LogLevel:       envStr("LOG_LEVEL", "info"),
+	cfg := &Config{
+		AppPort:  envInt("APP_PORT", 8081),
+		AppMode:  envStr("APP_MODE", "DEV"),
+		AppName:  envStr("APP_NAME", "golang-app2"),
+		LogLevel: envStr("LOG_LEVEL", "info"),
+		// DB defaults match docker-compose.yml (postgres-app2, exposed on
+		// host port 5433) so the service runs out of the box locally.
 		DBHost:         envStr("DB_HOST", "localhost"),
 		DBPort:         envInt("DB_PORT", 5433),
-		DBUser:         envStr("DB_USER", "app2"),
-		DBName:         envStr("DB_NAME", "golang-app2"),
-		DBPassword:     envStr("DB_PASSWORD", ""),
+		DBUser:         envStr("DB_USER", "app2_user"),
+		DBName:         envStr("DB_NAME", "app2_db"),
+		DBPassword:     envStr("DB_PASSWORD", defaultDevDBPassword),
 		DBSSLMode:      envStr("DB_SSLMODE", "disable"),
 		NATSURL:        envStr("NATS_URL", "nats://localhost:4222"),
 		QueueGroup:     envStr("QUEUE_GROUP", "golang-app2-queue"),
@@ -60,6 +67,31 @@ func Load() *Config {
 		CORSAllowedMethods:   envStrSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}),
 		CORSAllowedHeaders:   envStrSlice("CORS_ALLOWED_HEADERS", []string{"*"}),
 		CORSAllowCredentials: envBool("CORS_ALLOW_CREDENTIALS", false),
+	}
+	cfg.validateSecurityDefaults()
+	return cfg
+}
+
+// validateSecurityDefaults warns about insecure defaults when running in
+// PROD mode (mirrors the golang-app config checks).
+func (c *Config) validateSecurityDefaults() {
+	if c.AppMode != "PROD" {
+		return
+	}
+	if c.DBPassword == defaultDevDBPassword {
+		fmt.Fprintln(os.Stderr, "WARNING: using the default development DB password in PROD mode — set DB_PASSWORD to a strong secret.")
+	}
+	for _, o := range c.CORSAllowedOrigins {
+		if o == "*" {
+			fmt.Fprintln(os.Stderr, "WARNING: CORS_ALLOWED_ORIGINS is '*' in PROD mode — set explicit origins to prevent cross-origin abuse.")
+			break
+		}
+	}
+	for _, h := range c.CORSAllowedHeaders {
+		if h == "*" {
+			fmt.Fprintln(os.Stderr, "WARNING: CORS_ALLOWED_HEADERS is '*' in PROD mode — set explicit headers.")
+			break
+		}
 	}
 }
 

@@ -538,13 +538,13 @@ CI 通过且在 `main` 分支后触发，三环境逐级部署 + 审批。
 | 命令 | 说明 |
 |------|------|
 | `make all`             | 代码检查 + 测试 + 构建 |
-| `make build`           | 构建所有服务二进制到 `<服务>/bin/server` |
+| `make build`           | 构建所有服务二进制到 `<服务>/server` |
 | `make test`            | 带竞态检测的测试 |
 | `make lint`            | `golangci-lint` 代码检查 |
 | `make tidy`            | `go mod tidy` |
-| `make docker-up`       | 启动完整系统 (Docker Compose) |
-| `make docker-down`     | 停止并移除所有容器和卷 |
-| `make docker-logs`     | 实时查看应用服务日志 |
+| `make docker-up`       | 启动基础设施：PostgreSQL x2 + NATS (Docker Compose) |
+| `make docker-down`     | 停止并移除所有容器 |
+| `make docker-logs`     | 实时查看基础设施服务日志 |
 | `make migrate`         | 运行所有数据库迁移 |
 | `make clean`           | 清理构建产物 |
 | `make generate`        | 运行 `go generate` |

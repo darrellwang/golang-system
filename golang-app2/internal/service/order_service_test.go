@@ -4,9 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/darrell/golang-system/golang-app2/internal/domain"
@@ -325,7 +323,3 @@ func TestHandleItemDeleted_OrderNotPending(t *testing.T) {
 		t.Errorf("expected status to remain confirmed (not auto-cancelled), got %s", stillConfirmed.Status)
 	}
 }
-
-// Ensure uuid and time are referenced to avoid unused-import warning
-var _ = uuid.New
-var _ = time.Now

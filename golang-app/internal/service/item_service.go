@@ -41,10 +41,24 @@ func (s *itemService) CreateItem(ctx context.Context, req *domain.CreateItemRequ
 	if err := s.repo.Create(ctx, item); err != nil {
 		return nil, apperror.Internal("create item", err)
 	}
-	go func() {
-		_ = s.publisher.PublishItemCreated(context.Background(), item)
-	}()
+	s.publishAsync(ctx, func(ctx context.Context) error {
+		return s.publisher.PublishItemCreated(ctx, item)
+	})
 	return item, nil
+}
+
+// publishAsync publishes a domain event without blocking the request path.
+// It inherits trace values (request_id, user_id, ...) from ctx via
+// context.WithoutCancel, but detaches cancellation so the event is still
+// published after the originating request has already returned. Publish
+// failures are logged rather than silently dropped — losing domain events
+// in an event-driven architecture is a P0 concern.
+func (s *itemService) publishAsync(ctx context.Context, fn func(ctx context.Context) error) {
+	go func() {
+		if err := fn(context.WithoutCancel(ctx)); err != nil {
+			s.log.Error().Err(err).Msg("failed to publish domain event")
+		}
+	}()
 }
 
 func (s *itemService) GetItem(ctx context.Context, id string) (*domain.Item, error) {
@@ -86,9 +100,9 @@ func (s *itemService) UpdateItem(ctx context.Context, id string, req *domain.Upd
 	if err := s.repo.Update(ctx, item); err != nil {
 		return nil, apperror.Internal("update item", err)
 	}
-	go func() {
-		_ = s.publisher.PublishItemUpdated(context.Background(), item)
-	}()
+	s.publishAsync(ctx, func(ctx context.Context) error {
+		return s.publisher.PublishItemUpdated(ctx, item)
+	})
 	return item, nil
 }
 
@@ -99,9 +113,9 @@ func (s *itemService) DeleteItem(ctx context.Context, id string) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return apperror.Internal("delete item", err)
 	}
-	go func() {
-		_ = s.publisher.PublishItemDeleted(context.Background(), id)
-	}()
+	s.publishAsync(ctx, func(ctx context.Context) error {
+		return s.publisher.PublishItemDeleted(ctx, id)
+	})
 	return nil
 }
 

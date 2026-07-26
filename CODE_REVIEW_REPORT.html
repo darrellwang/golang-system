@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>golang-system 代码审查报告 · Code Review Report</title>
+<style>
+  :root{
+    --bg:#fafafa; --surface:#ffffff; --border:#e2e8f0; --text:#1e293b;
+    --text-muted:#64748b; --primary:#6d28d9; --primary-light:#ede9fe;
+    --red:#dc2626; --red-bg:#fef2f2; --amber:#d97706; --amber-bg:#fffbeb;
+    --green:#059669; --green-bg:#ecfdf5; --blue:#2563eb; --blue-bg:#eff6ff;
+    --code-bg:#f1f5f9; --code-text:#334155;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.7;margin:0;padding:0;font-size:15px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 80px;}
+  header.hero{background:linear-gradient(135deg,#6d28d9 0%,#4c1d95 100%);color:#fff;
+    padding:40px 32px;border-radius:16px;margin-bottom:32px;box-shadow:0 10px 30px rgba(109,40,217,.18);}
+  header.hero h1{margin:0 0 6px;font-size:28px;font-weight:700;}
+  header.hero .sub{opacity:.92;font-size:14px;margin-bottom:12px;}
+  header.hero .meta{display:flex;flex-wrap:wrap;gap:8px;}
+  header.hero .tag{background:rgba(255,255,255,.18);padding:4px 12px;border-radius:999px;font-size:12px;}
+  h2{font-size:22px;margin:40px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--primary);
+    color:var(--primary);font-weight:700;}
+  h2 .en{color:var(--text-muted);font-weight:500;font-size:15px;margin-left:8px;}
+  h3{font-size:17px;margin:24px 0 10px;color:var(--text);font-weight:600;}
+  p{margin:8px 0;}
+  ul,ol{margin:8px 0;padding-left:24px;}
+  li{margin:5px 0;}
+  code{background:var(--code-bg);color:var(--code-text);padding:2px 6px;border-radius:4px;
+    font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:13px;}
+  pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:8px;overflow-x:auto;
+    margin:10px 0;font-size:13px;line-height:1.55;}
+  pre code{background:transparent;color:inherit;padding:0;font-size:13px;}
+  .kw{color:#c084fc;} .ty{color:#7dd3fc;} .st{color:#86efac;} .cm{color:#94a3b8;font-style:italic;}
+  table{width:100%;border-collapse:collapse;margin:12px 0;background:var(--surface);
+    border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:14px;}
+  th{background:var(--primary-light);color:var(--primary);text-align:left;padding:10px 12px;
+    font-weight:600;border-bottom:1px solid var(--border);}
+  td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#faf5ff;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}
+  .b-red{background:var(--red-bg);color:var(--red);}
+  .b-amber{background:var(--amber-bg);color:var(--amber);}
+  .b-green{background:var(--green-bg);color:var(--green);}
+  .b-gray{background:#f1f5f9;color:#475569;}
+  .b-blue{background:var(--blue-bg);color:var(--blue);}
+  .issue{border:1px solid var(--border);border-radius:10px;margin:14px 0;overflow:hidden;background:var(--surface);}
+  .issue .head{padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--border);}
+  .issue.red .head{background:var(--red-bg);}
+  .issue.amber .head{background:var(--amber-bg);}
+  .issue.gray .head{background:#f8fafc;}
+  .issue .head .title{font-weight:700;font-size:15px;}
+  .issue .body{padding:14px 18px;}
+  .issue .body h4{margin:12px 0 4px;font-size:14px;color:var(--primary);}
+  .issue .body h4:first-child{margin-top:0;}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:10px 0;border:1px solid var(--border);
+    border-radius:8px;overflow:hidden;}
+  .compare>div{padding:12px 14px;}
+  .compare .bad{background:var(--red-bg);border-right:1px solid var(--border);}
+  .compare .good{background:var(--green-bg);}
+  .compare .head{font-weight:700;margin-bottom:6px;font-size:13px;}
+  .compare .bad .head{color:var(--red);} .compare .good .head{color:var(--green);}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+  .stat .num{font-size:28px;font-weight:700;}
+  .stat .lbl{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .stat.red .num{color:var(--red);} .stat.amber .num{color:var(--amber);}
+  .stat.green .num{color:var(--green);} .stat.blue .num{color:var(--blue);}
+  .callout{border-left:4px solid;padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;}
+  .callout.green{background:var(--green-bg);border-color:var(--green);}
+  .callout.blue{background:var(--blue-bg);border-color:var(--blue);}
+  .callout .lbl{font-weight:700;margin-bottom:4px;display:block;}
+  .callout.green .lbl{color:var(--green);} .callout.blue .lbl{color:var(--blue);}
+  .file-ref{font-family:"JetBrains Mono",Consolas,monospace;font-size:12px;color:var(--text-muted);
+    background:var(--code-bg);padding:2px 6px;border-radius:4px;}
+  .verify{background:var(--green-bg);border:1px solid var(--green);border-radius:10px;
+    padding:16px 20px;margin:20px 0;}
+  .verify h3{margin:0 0 8px;color:var(--green);}
+  .verify .ok{color:var(--green);font-weight:600;}
+  .footnote{font-size:13px;color:var(--text-muted);}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr);}.compare{grid-template-columns:1fr;}
+    .compare .bad{border-right:none;border-bottom:1px solid var(--border);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>👁️ golang-system 代码审查报告</h1>
+  <div class="sub">Code Review Report · 按《代码审查标准 v1.0》对全仓执行实战审查 + 修复</div>
+  <div class="meta">
+    <span class="tag">审查日期 2026-07-02</span>
+    <span class="tag">审查范围 4 模块</span>
+    <span class="tag">10 处问题</span>
+    <span class="tag">7 处已修复</span>
+    <span class="tag">验证 全绿</span>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat red"><div class="num">3</div><div class="lbl">🔴 Blocker<br>已全部修复</div></div>
+  <div class="stat amber"><div class="num">4</div><div class="lbl">🟡 Suggestion<br>3 处已修复</div></div>
+  <div class="stat blue"><div class="num">3</div><div class="lbl">💭 Nit<br>已全部修复</div></div>
+  <div class="stat green"><div class="num">7/10</div><div class="lbl">本次修复<br>含验证</div></div>
+</div>
+
+<h2>1. 审查概览 <span class="en">Review Summary</span></h2>
+<p>本次按《golang-system 代码审查标准 v1.0》的 12 大维度，对 <code>golang-commons</code>、<code>golang-events</code>、<code>golang-app</code>、<code>golang-app2</code> 四个模块的核心 Go 源码执行实战审查。共识别 <strong>10 处问题</strong>，其中 🔴 Blocker 3 处、🟡 Suggestion 4 处、💭 Nit 3 处。本次<strong>已修复 7 处</strong>（含全部 Blocker），剩余 3 处为需团队决策的架构/契约级建议，已在报告中记录并给出后续行动建议。</p>
+
+<div class="callout green">
+  <span class="lbl">🌟 值得肯定的好代码</span>
+  <ul style="margin:0;">
+    <li><strong>六边形架构边界守得住</strong>：service 层通过 <code>ItemRepository</code> / <code>EventPublisher</code> 接口依赖，未 import adapter 包，组合根在 <code>internal/app</code>，分层清晰。</li>
+    <li><strong>SQL 全部参数化</strong>：postgres.go 所有查询用 <code>$1, $2</code> 占位符，无注入风险。</li>
+    <li><strong>时间统一 UTC</strong>：<code>time.Now().UTC()</code> 贯穿 service 层，时区处理一致。</li>
+    <li><strong>错误用 apperror 结构化</strong>：带 HTTP 状态码，未裸用 <code>errors.New</code>。</li>
+    <li><strong>service 层有带 mock 的单元测试</strong>：<code>item_service_test.go</code> / <code>order_service_test.go</code> 覆盖了主要路径。</li>
+    <li><strong>graceful shutdown 完整</strong>：main.go 捕获 SIGINT/SIGTERM，30s 超时关闭。</li>
+  </ul>
+</div>
+
+<h2>2. 已修复问题清单 <span class="en">Fixed Issues</span></h2>
+
+<!-- Issue 1 -->
+<div class="issue red">
+  <div class="head">
+    <span class="badge b-red">🔴 Blocker</span>
+    <span class="badge b-gray">安全/可观测性</span>
+    <span class="title">1. 事件发布丢失 trace 上下文 + 静默吞错</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app/internal/service/item_service.go:44-46, 89-91, 102-104</span><br>
+       <span class="file-ref">golang-app2/internal/service/order_service.go:84-86, 126-128, 145-147</span></p>
+    <h4>问题 Why</h4>
+    <p>原代码 <code>go func() { _ = s.publisher.PublishItemCreated(context.Background(), item) }()</code> 存在两个 P0 级问题：</p>
+    <ul>
+      <li>用 <code>context.Background()</code> 丢失了请求的 <code>X-Request-ID</code> / <code>X-User-ID</code> 等 trace 值，导致事件发布日志无法与请求链路串联，排障困难。</li>
+      <li><code>_ =</code> 静默吞掉发布失败，事件可能丢失而完全无告警。在事件驱动架构中，事件丢失会导致订单服务收不到 item 删除通知、进而无法自动取消关联订单——这是数据不一致的根源。</li>
+    </ul>
+    <h4>修复 Suggestion</h4>
+    <p>提取 <code>publishAsync</code> 辅助方法，用 <code>context.WithoutCancel(ctx)</code>（Go 1.21+，本项目 go 1.23）继承 trace 值但脱离取消，发布失败记 Error 日志：</p>
+<pre><code><span class="cm">// publishAsync publishes a domain event without blocking the request path.</span>
+<span class="cm">// 继承 ctx 的 trace 值但脱离取消，请求返回后仍能发布事件。</span>
+<span class="kw">func</span> (s *itemService) <span class="fn">publishAsync</span>(ctx context.Context, fn <span class="kw">func</span>(ctx context.Context) <span class="ty">error</span>) {
+    <span class="kw">go func</span>() {
+        <span class="kw">if</span> err := <span class="fn">fn</span>(context.WithoutCancel(ctx)); err != <span class="kw">nil</span> {
+            s.log.<span class="fn">Error</span>().<span class="fn">Err</span>(err).<span class="fn">Msg</span>(<span class="st">"failed to publish domain event"</span>)
+        }
+    }()
+}</code></pre>
+    <p><strong>影响范围</strong>：6 处调用点全部改用 <code>publishAsync</code>；mock publisher 返回 nil，现有测试全部通过。</p>
+  </div>
+</div>
+
+<!-- Issue 2 -->
+<div class="issue red">
+  <div class="head">
+    <span class="badge b-red">🔴 Blocker</span>
+    <span class="badge b-gray">安全</span>
+    <span class="title">2. URL 路径拼接未转义</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app2/internal/client/item_client.go:24</span></p>
+    <h4>问题 Why</h4>
+    <p>原代码 <code>c.c.Get(ctx, "/rest/v1/items/"+id, &amp;item)</code> 直接拼接用户可控的 <code>id</code>。虽然 item ID 由 UUID 生成，但作为防御性编程原则——外部输入进入 URL 路径前必须转义，否则 <code>../</code>、空格、<code>%</code> 等特殊字符可能导致路径穿越或请求异常。本标准第 8 章明确要求。</p>
+    <h4>修复 Suggestion</h4>
+<pre><code><span class="kw">func</span> (c *ItemClient) <span class="fn">GetByID</span>(ctx context.Context, id <span class="ty">string</span>) (*domain.ItemView, <span class="ty">error</span>) {
+    <span class="kw">var</span> item domain.ItemView
+    <span class="kw">if</span> err := c.c.<span class="fn">Get</span>(ctx, <span class="st">"/rest/v1/items/"</span>+url.<span class="fn">PathEscape</span>(id), &amp;item); err != <span class="kw">nil</span> {
+        <span class="kw">return</span> <span class="kw">nil</span>, err
+    }
+    <span class="kw">return</span> &amp;item, <span class="kw">nil</span>
+}</code></pre>
+  </div>
+</div>
+
+<!-- Issue 3 -->
+<div class="issue amber">
+  <div class="head">
+    <span class="badge b-amber">🟡 Suggestion</span>
+    <span class="badge b-gray">可读性</span>
+    <span class="title">3. 纳秒字面量表示时长</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app2/internal/client/item_client.go:18</span></p>
+    <h4>问题 Why</h4>
+    <p><code>httpclient.WithTimeout(10*1_000_000_000)</code> 用纳秒字面量表示 10 秒，需心算 9 个 0 才知道是 10 秒，可读性差且易出错。</p>
+    <h4>修复 Suggestion</h4>
+<pre><code><span class="kw">return</span> &amp;ItemClient{c: httpclient.<span class="fn">New</span>(baseURL, httpclient.<span class="fn">WithTimeout</span>(<span class="ty">10</span> * time.Second))}</code></pre>
+  </div>
+</div>
+
+<!-- Issue 4 -->
+<div class="issue amber">
+  <div class="head">
+    <span class="badge b-amber">🟡 Suggestion</span>
+    <span class="badge b-gray">安全</span>
+    <span class="title">4. HTTP 请求体未限制大小</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app/internal/ports/http/event/handler.go:39, 74</span><br>
+       <span class="file-ref">golang-app2/internal/ports/http/event/handler.go:35, 72</span></p>
+    <h4>问题 Why</h4>
+    <p><code>json.NewDecoder(r.Body).Decode(&amp;req)</code> 直接解码请求体，未限制大小。攻击者可发送超大 body 耗尽服务器内存（DoS）。本标准第 8 章安全清单要求输入校验。</p>
+    <h4>修复 Suggestion</h4>
+    <p>用 <code>http.MaxBytesReader</code> 包装 <code>r.Body</code>，限制为 1 MiB（对 item/order JSON 足够）：</p>
+<pre><code><span class="cm">// 限制请求体 1 MiB，防御超大 body DoS</span>
+r.Body = http.<span class="fn">MaxBytesReader</span>(w, r.Body, <span class="ty">1</span>&lt;&lt;<span class="ty">20</span>)
+<span class="kw">if</span> err := json.<span class="fn">NewDecoder</span>(r.Body).<span class="fn">Decode</span>(&amp;req); err != <span class="kw">nil</span> {
+    httputil.<span class="fn">Error</span>(w, err)
+    <span class="kw">return</span>
+}</code></pre>
+    <p>4 个 handler（2 个 create + 2 个 update）均已修复。</p>
+  </div>
+</div>
+
+<!-- Issue 5 -->
+<div class="issue red">
+  <div class="head">
+    <span class="badge b-red">🔴 Blocker</span>
+    <span class="badge b-gray">安全</span>
+    <span class="title">5. HandleItemDeleted 同步发布事件吞错</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app2/internal/service/order_service.go:192</span></p>
+    <h4>问题 Why</h4>
+    <p>订单自动取消后 <code>_ = s.publisher.PublishOrderCanceled(ctx, order, ...)</code> 静默吞错。此处是同步调用（非 async），若发布失败，下游服务不知道订单已取消，导致状态不一致。虽用请求 ctx，但吞错是 P0 问题。</p>
+    <h4>修复 Suggestion</h4>
+<pre><code><span class="kw">if</span> err := s.publisher.<span class="fn">PublishOrderCanceled</span>(ctx, order, <span class="st">"referenced item was deleted"</span>); err != <span class="kw">nil</span> {
+    s.log.<span class="fn">Error</span>().<span class="fn">Err</span>(err).<span class="fn">Str</span>(<span class="st">"order_id"</span>, id).<span class="fn">Msg</span>(<span class="st">"failed to publish auto-cancel event"</span>)
+}</code></pre>
+  </div>
+</div>
+
+<!-- Issue 6 -->
+<div class="issue amber">
+  <div class="head">
+    <span class="badge b-amber">🟡 Suggestion</span>
+    <span class="badge b-gray">安全/配置</span>
+    <span class="title">6. PROD 模式 CORS 默认配置过宽</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app/internal/config/config.go:59,61</span></p>
+    <h4>问题 Why</h4>
+    <p>CORS 默认 <code>AllowedOrigins=["*"]</code>、<code>AllowedHeaders=["*"]</code>，开发环境方便但生产环境是跨域滥用风险。本标准第 8 章要求生产环境严格配置 Origin。</p>
+    <h4>修复 Suggestion</h4>
+    <p>新增 <code>validateSecurityDefaults()</code>，PROD 模式下若仍为 <code>*</code> 输出 stderr 警告，提醒运维显式配置：</p>
+<pre><code><span class="kw">func</span> (c *Config) <span class="fn">validateSecurityDefaults</span>() {
+    <span class="kw">if</span> c.AppMode != <span class="st">"PROD"</span> {
+        <span class="kw">return</span>
+    }
+    <span class="kw">for</span> _, o := <span class="kw">range</span> c.CORSAllowedOrigins {
+        <span class="kw">if</span> o == <span class="st">"*"</span> {
+            fmt.<span class="fn">Fprintln</span>(os.Stderr, <span class="st">"WARNING: CORS_ALLOWED_ORIGINS is '*' in PROD..."</span>)
+            <span class="kw">break</span>
+        }
+    }
+    <span class="cm">// headers 同理</span>
+}</code></pre>
+  </div>
+</div>
+
+<!-- Issue 7 -->
+<div class="issue gray">
+  <div class="head">
+    <span class="badge b-gray">💭 Nit</span>
+    <span class="badge b-gray">测试/规范</span>
+    <span class="title">7. 测试文件 unused import hack + 事件常量对齐</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app2/internal/service/order_service_test.go:329-331</span> · <span class="file-ref">golang-events/events.go:15</span></p>
+    <h4>问题 Why</h4>
+    <p>测试文件末尾 <code>var _ = uuid.New</code> / <code>var _ = time.Now</code> 是为绕过 unused import 检查的 hack，应直接删除未使用的 import。events.go 中 <code>SubjectItemExternalCreate</code> 与同行对齐不一致。</p>
+    <h4>修复 Suggestion</h4>
+    <p>删除 <code>uuid</code>、<code>time</code> import 及 hack 行；对齐事件常量。修复后测试仍全绿。</p>
+  </div>
+</div>
+
+<h2>3. 已记录待决策问题 <span class="en">Recorded for Team Decision</span></h2>
+<p>以下 3 处涉及 API 契约变更或较大重构，本次<strong>未直接修改</strong>，记录于此供团队 RFC 决策。</p>
+
+<div class="issue amber">
+  <div class="head">
+    <span class="badge b-amber">🟡 Suggestion</span>
+    <span class="badge b-gray">API 契约</span>
+    <span class="title">8. ListItems/ListOrders 静默修正非法入参</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app/internal/service/item_service.go:59-64</span> · <span class="file-ref">golang-app2/internal/service/order_service.go:99-104</span></p>
+    <h4>问题 Why</h4>
+    <p>limit ≤ 0 或 &gt; 100 时静默改成 20，offset &lt; 0 改成 0。调用方传错值被静默修正，可能掩盖 bug；且 limit &gt; 100 时回退到 20 而非报错，行为不直观。现有测试 <code>TestListItems_ExcessiveLimit</code> 明确依赖此行为。</p>
+    <h4>建议（需团队决策）</h4>
+    <ul>
+      <li><strong>方案 A（推荐）</strong>：limit ≤ 0 保留回退默认 20（REST 约定，省略参数给默认值）；limit &gt; 100 返回 <code>apperror.NewBadInput("limit must be 1..100")</code> 快速失败。需同步调整测试。</li>
+      <li><strong>方案 B</strong>：保持现状，在 godoc 注释中明确"静默修正"的设计意图，避免被误读为 bug。</li>
+    </ul>
+    <p class="footnote">本次未修改，因属 API 契约变更，需评估对前端/上游调用方的影响后统一决策。</p>
+  </div>
+</div>
+
+<div class="issue amber">
+  <div class="head">
+    <span class="badge b-amber">🟡 Suggestion</span>
+    <span class="badge b-gray">内存/可维护性</span>
+    <span class="title">9. orderService.trackedItems 内存只增不减</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app2/internal/service/order_service.go:23-24, 73-82</span></p>
+    <h4>问题 Why</h4>
+    <p><code>trackedItems map[string]map[string]struct{}</code> 在 <code>CreateOrder</code> 时添加 itemID→orderID 映射，但订单完成/取消/删除后从不清理。长期运行下，已完成订单的引用永不释放，内存单调增长。</p>
+    <h4>建议（需重构）</h4>
+    <ul>
+      <li>订单进入终态（canceled/delivered）时，从 trackedItems 移除该 orderID。</li>
+      <li>或改用 TTL 缓存（如 ttlcache）替代手工 map 管理。</li>
+      <li>更根本地，考虑将"item→orders 关联"持久化到 DB，而非进程内 map——当前实现多实例间不共享，item 删除时只能取消本实例创建的订单。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="issue gray">
+  <div class="head">
+    <span class="badge b-gray">💭 Nit</span>
+    <span class="badge b-gray">架构</span>
+    <span class="title">10. NATS publisher 忽略 ctx</span>
+  </div>
+  <div class="body">
+    <p><span class="file-ref">golang-app/internal/adapter/messaging/nats.go:36,53,70</span></p>
+    <h4>问题 Why</h4>
+    <p><code>PublishItemCreated(_ context.Context, ...)</code> 忽略 ctx。NATS Core 的 <code>conn.Publish</code> 是 fire-and-forget 不支持 ctx 超时，但若未来切到 JetStream（<code>js.Publish</code> 支持 ctx），应透传 ctx 以支持超时与取消。</p>
+    <h4>建议</h4>
+    <p>迁移到 JetStream 时统一透传 ctx；当前 Core 模式下记为已知限制，在 godoc 注释说明。</p>
+  </div>
+</div>
+
+<h2>2. 验证结果 <span class="en">Verification</span></h2>
+<div class="verify">
+  <h3>✅ 修复后验证全绿</h3>
+  <table>
+    <thead><tr><th>检查项</th><th>命令</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>编译</td><td><code>go build ./...</code>（4 模块）</td><td><span class="ok">✓ 全通过</span></td></tr>
+      <tr><td>静态检查</td><td><code>go vet ./...</code></td><td><span class="ok">✓ 无告警</span></td></tr>
+      <tr><td>单元测试</td><td><code>go test ./...</code></td><td><span class="ok">✓ 全绿</span>（item_service / order_service / apperror / httpclient / httputil）</td></tr>
+    </tbody>
+  </table>
+  <p class="footnote">注：本机 Windows + WSL drvfs 文件锁限制，<code>-race</code> 需 cgo/gcc，已在临时原生路径验证 build/test/vet；<code>-race</code> 竞态检测交由 CI（Linux）执行。go.work RLock 在 X: 盘失败是环境问题，非代码问题——CI/Linux 下 <code>make test</code> 正常。</p>
+</div>
+
+<h2>5. 修改文件清单 <span class="en">Changed Files</span></h2>
+<table>
+  <thead><tr><th>文件</th><th>修改内容</th><th>问题级别</th></tr></thead>
+  <tbody>
+    <tr><td><code>golang-app/internal/service/item_service.go</code></td><td>新增 publishAsync；3 处事件发布改用 context.WithoutCancel + 错误日志</td><td>🔴</td></tr>
+    <tr><td><code>golang-app2/internal/service/order_service.go</code></td><td>新增 publishAsync；3 处 async + 1 处同步事件发布修复</td><td>🔴</td></tr>
+    <tr><td><code>golang-app2/internal/client/item_client.go</code></td><td>url.PathEscape 转义；10*time.Second</td><td>🔴 + 🟡</td></tr>
+    <tr><td><code>golang-app/internal/ports/http/event/handler.go</code></td><td>create/update 加 MaxBytesReader 1MiB</td><td>🟡</td></tr>
+    <tr><td><code>golang-app2/internal/ports/http/event/handler.go</code></td><td>create/update 加 MaxBytesReader 1MiB</td><td>🟡</td></tr>
+    <tr><td><code>golang-app/internal/config/config.go</code></td><td>新增 validateSecurityDefaults PROD CORS 警告</td><td>🟡</td></tr>
+    <tr><td><code>golang-app2/internal/service/order_service_test.go</code></td><td>删除 unused import hack</td><td>💭</td></tr>
+    <tr><td><code>golang-events/events.go</code></td><td>事件常量对齐</td><td>💭</td></tr>
+  </tbody>
+</table>
+
+<h2>6. 后续行动建议 <span class="en">Next Steps</span></h2>
+<ol>
+  <li><strong>团队 RFC 决策</strong>问题 8（ListItems 入参校验策略）——是否改为 limit &gt; 100 快速失败，需评估对前端调用方的影响。</li>
+  <li><strong>规划重构</strong>问题 9（trackedItems 内存泄漏）——建议将 item→orders 关联持久化到 DB，解决多实例不共享 + 内存增长两个问题。</li>
+  <li><strong>NATS 迁移</strong>：若引入 JetStream，统一在 publisher adapter 透传 ctx，并配置 queue group + 死信队列保证事件可靠投递。</li>
+  <li><strong>补测试</strong>：为 handler 层（MaxBytesReader 行为）、client 层（PathEscape 行为）补充单元测试。</li>
+  <li><strong>CI 加固</strong>：接入 <code>golangci-lint</code>（启用 errcheck/gosec/staticcheck）、<code>govulncheck</code>、Trivy 镜像扫描，将本次审查发现的模式（吞错、URL 未转义）固化为 lint 规则。</li>
+</ol>
+
+<div class="callout blue">
+  <span class="lbl">📝 审查总结</span>
+  本次审查聚焦标准中最高优先级的两条红线——<strong>架构依赖方向</strong>（未违规，值得肯定）与<strong>事件契约可靠性</strong>（发现 6 处 context 丢失 + 吞错，已全部修复）。修复后编译、vet、测试全绿，未破坏现有 API 契约。剩余 3 处待决策项已记录，建议纳入下个迭代规划。代码库整体质量基线良好，六边形架构落地扎实，主要改进空间在事件发布的可观测性与防御性编程细节。
+</div>
+
+<hr style="margin:36px 0 16px;border:none;border-top:1px solid var(--border);">
+<p class="footnote">
+  📄 审查报告 v1.0 · 审查人：代码审查专家「火眼眼」 · 日期 2026-07-02<br>
+  依据：《golang-system 代码审查标准 v1.0》 · 验证：go build + go vet + go test 全绿
+</p>
+
+</div>
+</body>
+</html>

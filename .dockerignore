@@ -1,0 +1,25 @@
+# 版本控制与 IDE
+.git/
+.idea/
+.vscode/
+.workbuddy/
+.codebuddy/
+
+# 构建产物（镜像内重新编译，无需带入上下文）
+**/server
+migrate-cli
+dist/
+*.tmp
+
+# 测试与覆盖率
+coverage.out
+**/*.cover
+
+# 文档与 CI（运行时不需要）
+*.md
+.github/
+
+# 其他
+ref/
+deploy-istio.sh
+istio-config/

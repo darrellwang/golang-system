@@ -463,7 +463,7 @@ pending (待处理) → confirmed (已确认) → shipped (已发货)
 # 1. Clone and enter the repo
 cd golang-system
 
-# 2. Start the full stack (2 apps + 2 DBs + NATS + migration)
+# 2. Start infrastructure (PostgreSQL x2 + NATS)
 make docker-up
 
 # 3. Run database migrations
@@ -504,10 +504,10 @@ make migrate
 make build
 
 # 4. Start item service (terminal 1)
-cd golang-app && ./bin/server
+cd golang-app && ./server
 
 # 5. Start order service (terminal 2)
-cd golang-app2 && ./bin/server
+cd golang-app2 && ./server
 ```
 
 ### 7.4 Go Workspace Multi-Module Development
@@ -623,9 +623,11 @@ Database migrations **must** run after the infrastructure is ready:
 make migrate
 
 # Kubernetes environment — via Job or Init Container
-# Method 1: kubectl exec
+# Method 1: kubectl exec (images ship the built-in migrate CLI; MIGRATE_PATH defaults to ./db/migrations)
 kubectl -n golang-system exec -it deploy/golang-system-golang-app -- \
-  sh -c "cd /home/appuser/db && migrate -path migrations -database $DATABASE_URL up"
+  sh -c 'DATABASE_URL="postgres://app:CHANGE_ME@postgres-app:5432/golang-app?sslmode=disable" ./migrate up'
+kubectl -n golang-system exec -it deploy/golang-system-golang-app2 -- \
+  sh -c 'DATABASE_URL="postgres://app2:CHANGE_ME@postgres-app2:5432/golang-app2?sslmode=disable" ./migrate up'
 
 # Method 2: Helm Hook (add pre-install/pre-upgrade Jobs to the Chart)
 ```
@@ -791,15 +793,15 @@ In addition to the common variables above, includes:
 | Command                | Description |
 |------------------------|-------------|
 | `make all`             | Lint + test + build |
-| `make build`           | Build all service binaries to `<service>/bin/server` |
+| `make build`           | Build all service binaries to `<service>/server` |
 | `make test`            | Run tests with race detection for all modules |
 | `make lint`            | Run `golangci-lint` on all modules |
 | `make tidy`            | Run `go mod tidy` on all modules |
-| `make docker-up`       | Start the full system (Docker Compose) |
-| `make docker-down`     | Stop and remove all containers and volumes |
-| `make docker-logs`     | Tail logs of the two application services |
+| `make docker-up`       | Start infrastructure: PostgreSQL x2 + NATS (Docker Compose) |
+| `make docker-down`     | Stop and remove all containers |
+| `make docker-logs`     | Tail logs of the infrastructure services |
 | `make migrate`         | Run all services' database migrations |
-| `make clean`           | Remove build artifacts (`bin/`, `.tmp/`) |
+| `make clean`           | Remove build artifacts (`<service>/server`, `migrate-cli`) |
 | `make generate`        | Run `go generate` in all services |
 | `make helm-deps`       | Update Helm Chart dependencies |
 | `make helm-template`   | Render Helm templates locally |
