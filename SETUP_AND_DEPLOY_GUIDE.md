@@ -38,7 +38,7 @@
 
 ### 1.3 技术栈
 
-- **语言**: Go 1.23（`go.work` 工作区模式）
+- **语言**: Go 1.26.1（`go.work` 工作区模式）
 - **HTTP 框架**: go-chi/chi v5
 - **数据库**: PostgreSQL 16（pgx/v5 驱动），golang-migrate 迁移工具
 - **消息队列**: NATS 2.10（含 JetStream）
@@ -61,13 +61,13 @@
 
 以下步骤以 Linux（Ubuntu/Debian 系）为例，macOS 使用 `brew` 替代 `apt`，Windows 建议使用 WSL2。
 
-### 2.1 安装 Go 1.23+
+### 2.1 安装 Go 1.26.1+
 
 ```bash
-# 下载并安装 Go 1.23（以 linux/amd64 为例）
-wget https://go.dev/dl/go1.23.10.linux-amd64.tar.gz
+# 下载并安装 Go 1.26.1（以 linux/amd64 为例）
+wget https://go.dev/dl/go1.26.1.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf go1.23.10.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.26.1.linux-amd64.tar.gz
 
 # 配置环境变量（写入 ~/.bashrc 或 ~/.zshrc）
 export PATH=$PATH:/usr/local/go/bin
@@ -76,7 +76,7 @@ export PATH=$PATH:$GOPATH/bin
 
 # 生效并验证
 source ~/.bashrc
-go version   # 应输出 go version go1.23.x linux/amd64
+go version   # 应输出 go version go1.26.1 linux/amd64
 ```
 
 > 可选：配置国内代理加速依赖下载
@@ -327,7 +327,7 @@ cd golang-system
 
 # 2. 确认 go.work 工作区（已随仓库提交，无需修改）
 cat go.work
-# go 1.23
+# go 1.26.1
 # use ( ./golang-app ./golang-app2 ./golang-commons ./golang-events )
 
 # 3. 下载所有模块依赖
