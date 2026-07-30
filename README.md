@@ -450,7 +450,7 @@ pending (待处理) → confirmed (已确认) → shipped (已发货)
 
 | Tool          | Version | Purpose |
 |---------------|---------|---------|
-| Go            | 1.23+   | Language runtime |
+| Go            | 1.26.1+ | Language runtime |
 | Docker        | 24+     | Container runtime |
 | Docker Compose| v2+     | Multi-container orchestration |
 | Make          | any     | Build automation |

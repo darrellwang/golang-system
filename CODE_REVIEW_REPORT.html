@@ -142,7 +142,7 @@
       <li><code>_ =</code> 静默吞掉发布失败，事件可能丢失而完全无告警。在事件驱动架构中，事件丢失会导致订单服务收不到 item 删除通知、进而无法自动取消关联订单——这是数据不一致的根源。</li>
     </ul>
     <h4>修复 Suggestion</h4>
-    <p>提取 <code>publishAsync</code> 辅助方法，用 <code>context.WithoutCancel(ctx)</code>（Go 1.21+，本项目 go 1.23）继承 trace 值但脱离取消，发布失败记 Error 日志：</p>
+    <p>提取 <code>publishAsync</code> 辅助方法，用 <code>context.WithoutCancel(ctx)</code>（Go 1.21+，本项目 go 1.26.1）继承 trace 值但脱离取消，发布失败记 Error 日志：</p>
 <pre><code><span class="cm">// publishAsync publishes a domain event without blocking the request path.</span>
 <span class="cm">// 继承 ctx 的 trace 值但脱离取消，请求返回后仍能发布事件。</span>
 <span class="kw">func</span> (s *itemService) <span class="fn">publishAsync</span>(ctx context.Context, fn <span class="kw">func</span>(ctx context.Context) <span class="ty">error</span>) {

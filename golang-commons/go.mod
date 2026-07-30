@@ -1,6 +1,6 @@
 module github.com/darrell/golang-system/golang-commons
 
-go 1.23
+go 1.26.1
 
 require (
 	github.com/google/uuid v1.6.0

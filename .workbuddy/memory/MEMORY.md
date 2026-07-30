@@ -1,7 +1,7 @@
 # golang-system 项目长期记忆
 
 ## 项目概览
-- 六边形架构 + 事件驱动 Go 微服务系统（Go 1.23）
+- 六边形架构 + 事件驱动 Go 微服务系统（Go 1.26.1）
 - 模块：golang-commons（共享库）、golang-events（事件契约）、golang-app（Item 服务）、golang-app2（Order 服务）、golang-system-chart（Helm）、istio-config（服务网格）
 - 技术栈：PostgreSQL 16、NATS JetStream、Istio、chi router、zerolog、pgx/v5
 - 服务间通信：HTTP（同步，httpclient 带 X-Request-ID 透传）+ NATS（异步事件）
