@@ -1,9 +1,24 @@
+# Dependabot 配置：自动检查并升级项目依赖
+# 文档: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 version: 2
 updates:
+  # ============================================================
+  # Go 模块依赖 (gomod)
+  # 覆盖项目中 4 个独立的 Go 模块，统一按周一频率检查
+  # 所有依赖更新合并到单一 PR，避免 PR 噪音
+  # ============================================================
   - package-ecosystem: "gomod"
     directory: "/golang-commons"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "go"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
     groups:
       go-modules:
         patterns: ["*"]
@@ -11,23 +26,99 @@ updates:
     directory: "/golang-events"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "go"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      go-modules:
+        patterns: ["*"]
   - package-ecosystem: "gomod"
     directory: "/golang-app"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "go"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      go-modules:
+        patterns: ["*"]
   - package-ecosystem: "gomod"
     directory: "/golang-app2"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "go"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      go-modules:
+        patterns: ["*"]
+
+  # ============================================================
+  # Docker 基础镜像 (docker)
+  # 监控 golang-app / golang-app2 的 Dockerfile，升级 FROM 镜像
+  # ============================================================
   - package-ecosystem: "docker"
     directory: "/golang-app"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      docker-base-images:
+        patterns: ["*"]
   - package-ecosystem: "docker"
     directory: "/golang-app2"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      docker-base-images:
+        patterns: ["*"]
+
+  # ============================================================
+  # GitHub Actions 版本 (github-actions)
+  # 监控 .github/workflows/ 下的 Action 版本 (checkout, setup-go 等)
+  # ============================================================
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      github-actions:
+        patterns: ["*"]
