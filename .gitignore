@@ -1,6 +1,7 @@
 # Build artifacts
 bin/
-server
+/golang-app/server
+/golang-app2/server
 dist/
 *.tmp
 
