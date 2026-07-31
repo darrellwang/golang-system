@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/darrell/golang-system/golang-commons/outbox"
 	"github.com/darrell/golang-system/golang-app/internal/domain"
+	"github.com/darrell/golang-system/golang-commons/outbox"
 	"github.com/darrell/golang-system/golang-events"
 )
 

@@ -15,13 +15,13 @@ const (
 
 // Order is the aggregate root.
 type Order struct {
-	ID        string       `json:"id"`
-	Status    OrderStatus  `json:"status"`
-	Total     float64      `json:"total"`
-	Note      string       `json:"note"`
-	Items     []OrderItem  `json:"items"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	ID        string      `json:"id"`
+	Status    OrderStatus `json:"status"`
+	Total     float64     `json:"total"`
+	Note      string      `json:"note"`
+	Items     []OrderItem `json:"items"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 // OrderItem is one line item in an order.

@@ -28,7 +28,7 @@ func (m *mockRepo) GetByID(_ context.Context, id string) (*domain.Item, error) {
 	}
 	return nil, errNotFound{id: id}
 }
-func (m *mockRepo) List(_ context.Context, offset, limit int, _ string) ([]*domain.Item, int, error) {
+func (m *mockRepo) List(_ context.Context, _, _ int, _ string) ([]*domain.Item, int, error) {
 	out := make([]*domain.Item, 0, len(m.items))
 	for _, v := range m.items {
 		out = append(out, v)

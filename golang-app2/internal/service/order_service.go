@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/darrell/golang-system/golang-app2/internal/domain"
 	apperror "github.com/darrell/golang-system/golang-commons/apperror"
 	"github.com/darrell/golang-system/golang-commons/httpclient"
-	"github.com/darrell/golang-system/golang-app2/internal/domain"
 	"github.com/darrell/golang-system/golang-events"
 )
 
@@ -192,7 +192,7 @@ func (s *orderService) HandleItemDeleted(ctx context.Context, evt *events.Event[
 	return nil
 }
 
-func (s *orderService) HandleItemUpdated(ctx context.Context, evt *events.Event[events.ItemUpdatedData]) error {
+func (s *orderService) HandleItemUpdated(_ context.Context, evt *events.Event[events.ItemUpdatedData]) error {
 	s.log.Info().
 		Str("item_id", evt.Data.ID).
 		Str("new_status", evt.Data.Status).

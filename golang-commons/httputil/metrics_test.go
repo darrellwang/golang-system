@@ -10,7 +10,7 @@ import (
 )
 
 func TestMetricsMiddleware_RecordsRequest(t *testing.T) {
-	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -24,7 +24,7 @@ func TestMetricsMiddleware_RecordsRequest(t *testing.T) {
 }
 
 func TestMetricsMiddleware_MultipleMethods(t *testing.T) {
-	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 
@@ -41,7 +41,7 @@ func TestMetricsMiddleware_MultipleMethods(t *testing.T) {
 }
 
 func TestMetricsMiddleware_DurationObserved(t *testing.T) {
-	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 
@@ -56,7 +56,7 @@ func TestMetricsMiddleware_DurationObserved(t *testing.T) {
 
 func TestMetricsMiddleware_InflightGauge(t *testing.T) {
 	done := make(chan struct{})
-	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		<-done
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -103,7 +103,7 @@ func TestMetricsHandler(t *testing.T) {
 	}
 }
 
-func TestRegisterMetrics(t *testing.T) {
+func TestRegisterMetrics(_ *testing.T) {
 	// Just verify it doesn't panic
 	RegisterMetrics()
 }

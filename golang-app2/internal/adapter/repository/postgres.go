@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/darrell/golang-system/golang-commons/database"
 	"github.com/darrell/golang-system/golang-app2/internal/domain"
+	"github.com/darrell/golang-system/golang-commons/database"
 )
 
 // OrderPostgres is the PostgreSQL implementation of OrderRepository.

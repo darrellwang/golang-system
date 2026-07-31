@@ -17,10 +17,10 @@ const defaultDevDBPassword = "app_password"
 
 // Config is the application configuration.
 type Config struct {
-	AppPort    int
-	AppMode    string // "DEV" or "PROD"
-	AppName    string
-	LogLevel   string
+	AppPort  int
+	AppMode  string // "DEV" or "PROD"
+	AppName  string
+	LogLevel string
 
 	DBHost     string
 	DBPort     int
@@ -29,16 +29,16 @@ type Config struct {
 	DBPassword string
 	DBSSLMode  string
 
-	NATSURL            string
-	QueueGroup         string
+	NATSURL    string
+	QueueGroup string
 
-	TLSEnabled         bool
-	TLSCertFile        string
-	TLSKeyFile         string
+	TLSEnabled  bool
+	TLSCertFile string
+	TLSKeyFile  string
 
-	CORSAllowedOrigins []string
-	CORSAllowedMethods []string
-	CORSAllowedHeaders []string
+	CORSAllowedOrigins   []string
+	CORSAllowedMethods   []string
+	CORSAllowedHeaders   []string
 	CORSAllowCredentials bool
 
 	// AuthTrustHeaders allows X-User-ID fallback when JWT claim headers are absent.
@@ -50,10 +50,10 @@ type Config struct {
 // Load reads configuration from environment variables.
 func Load() *Config {
 	cfg := &Config{
-		AppPort:    envInt("APP_PORT", 8080),
-		AppMode:    envStr("APP_MODE", "DEV"),
-		AppName:    envStr("APP_NAME", "golang-app"),
-		LogLevel:   envStr("LOG_LEVEL", "info"),
+		AppPort:  envInt("APP_PORT", 8080),
+		AppMode:  envStr("APP_MODE", "DEV"),
+		AppName:  envStr("APP_NAME", "golang-app"),
+		LogLevel: envStr("LOG_LEVEL", "info"),
 		// DB defaults match docker-compose.yml (postgres-app) so the
 		// service runs out of the box in local development.
 		DBHost:     envStr("DB_HOST", "localhost"),

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	chiMW "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
@@ -83,7 +82,6 @@ func (a *App) Start() error {
 			AllowCredentials: a.cfg.CORSAllowCredentials,
 		}))
 	}
-	r.Use(chiMW.RealIP)
 	r.Use(httputil.RequestIDMiddleware)
 	r.Use(httputil.AuthContextMiddleware(&httputil.AuthConfig{TrustHeaders: a.cfg.AuthTrustHeaders}))
 	r.Use(httputil.RecoveryMiddleware(a.log))

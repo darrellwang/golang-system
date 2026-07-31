@@ -16,25 +16,25 @@ var Version = "dev"
 const defaultDevDBPassword = "app2_password"
 
 type Config struct {
-	AppPort        int
-	AppMode        string
-	AppName        string
-	LogLevel       string
+	AppPort  int
+	AppMode  string
+	AppName  string
+	LogLevel string
 
-	DBHost         string
-	DBPort         int
-	DBUser         string
-	DBName         string
-	DBPassword     string
-	DBSSLMode      string
+	DBHost     string
+	DBPort     int
+	DBUser     string
+	DBName     string
+	DBPassword string
+	DBSSLMode  string
 
 	NATSURL        string
 	QueueGroup     string
 	ItemServiceURL string
 
-	TLSEnabled           bool
-	TLSCertFile          string
-	TLSKeyFile           string
+	TLSEnabled  bool
+	TLSCertFile string
+	TLSKeyFile  string
 
 	CORSAllowedOrigins   []string
 	CORSAllowedMethods   []string

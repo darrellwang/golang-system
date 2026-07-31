@@ -96,9 +96,9 @@ func EnsureStream(js nats.JetStreamContext, name string, subjects []string) erro
 	_, err := js.StreamInfo(name)
 	if err == nil {
 		_, err = js.UpdateStream(&nats.StreamConfig{
-			Name:     name,
-			Subjects: subjects,
-			Storage:  nats.FileStorage,
+			Name:      name,
+			Subjects:  subjects,
+			Storage:   nats.FileStorage,
 			Retention: nats.LimitsPolicy,
 		})
 		return err
