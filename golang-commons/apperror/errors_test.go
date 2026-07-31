@@ -150,4 +150,3 @@ func TestIsAppError_NonAppError(t *testing.T) {
 		t.Error("expected IsAppError to return false for non-AppError")
 	}
 }
-

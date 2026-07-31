@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	apperror "github.com/darrell/golang-system/golang-commons/apperror"
 	"github.com/darrell/golang-system/golang-app/internal/domain"
+	apperror "github.com/darrell/golang-system/golang-commons/apperror"
 	"github.com/darrell/golang-system/golang-events"
 )
 
@@ -105,7 +105,7 @@ func (s *itemService) DeleteItem(ctx context.Context, id string) error {
 	})
 }
 
-func (s *itemService) HandleOrderCreated(ctx context.Context, evt *events.Event[events.OrderCreatedData]) error {
+func (s *itemService) HandleOrderCreated(_ context.Context, evt *events.Event[events.OrderCreatedData]) error {
 	s.log.Info().
 		Str("order_id", evt.Data.ID).
 		Int("items", len(evt.Data.Items)).
@@ -124,7 +124,7 @@ func (s *itemService) HandleGetItemByID(ctx context.Context, req *events.GetItem
 	}, nil
 }
 
-func (s *itemService) HandleExternalCreate(ctx context.Context, evt *events.Event[events.ItemCreatedData]) error {
+func (s *itemService) HandleExternalCreate(_ context.Context, evt *events.Event[events.ItemCreatedData]) error {
 	s.log.Info().
 		Str("item_id", evt.Data.ID).
 		Str("name", evt.Data.Name).

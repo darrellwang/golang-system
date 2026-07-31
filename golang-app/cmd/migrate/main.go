@@ -131,38 +131,56 @@ func getCurrentVersion(db *sql.DB) (int64, error) {
 	return version, err
 }
 
-func getAppliedMigrations(db *sql.DB) ([]struct{ version int64; filename string }, error) {
+func getAppliedMigrations(db *sql.DB) ([]struct {
+	version  int64
+	filename string
+}, error) {
 	rows, err := db.Query("SELECT version FROM schema_migrations ORDER BY version DESC")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var migrations []struct{ version int64; filename string }
+	var migrations []struct {
+		version  int64
+		filename string
+	}
 	for rows.Next() {
 		var v int64
 		if err := rows.Scan(&v); err != nil {
 			return nil, err
 		}
-		migrations = append(migrations, struct{ version int64; filename string }{version: v})
+		migrations = append(migrations, struct {
+			version  int64
+			filename string
+		}{version: v})
 	}
 	return migrations, nil
 }
 
-func getMigrationFiles() ([]struct{ version int64; filename string }, error) {
+func getMigrationFiles() ([]struct {
+	version  int64
+	filename string
+}, error) {
 	entries, err := os.ReadDir(migratePath)
 	if err != nil {
 		return nil, fmt.Errorf("read migrations dir: %w", err)
 	}
 
-	var files []struct{ version int64; filename string }
+	var files []struct {
+		version  int64
+		filename string
+	}
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
 			version, err := parseMigrationVersion(entry.Name())
 			if err != nil {
 				continue // Skip files with invalid versions
 			}
-			files = append(files, struct{ version int64; filename string }{
+			files = append(files, struct {
+				version  int64
+				filename string
+			}{
 				version:  version,
 				filename: entry.Name(),
 			})
@@ -239,14 +257,14 @@ func runUp() {
 				continue
 			}
 			if _, err := tx.Exec(stmt); err != nil {
-				tx.Rollback()
+				_ = tx.Rollback()
 				fmt.Fprintf(os.Stderr, "Error executing migration %s: %v\nStatement: %s\n", f.filename, err, stmt)
 				os.Exit(1)
 			}
 		}
 
 		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", f.version); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			fmt.Fprintf(os.Stderr, "Error recording migration %s: %v\n", f.filename, err)
 			os.Exit(1)
 		}
@@ -318,13 +336,13 @@ func runDown(n int) {
 		}
 
 		if _, err := tx.Exec(downSQL); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			fmt.Fprintf(os.Stderr, "Error rolling back migration %d: %v\n", migration.version, err)
 			os.Exit(1)
 		}
 
 		if _, err := tx.Exec("DELETE FROM schema_migrations WHERE version = $1", migration.version); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			fmt.Fprintf(os.Stderr, "Error removing migration record %d: %v\n", migration.version, err)
 			os.Exit(1)
 		}
@@ -361,7 +379,7 @@ func showVersion() {
 	rows, _ := db.Query("SELECT version FROM schema_migrations ORDER BY version")
 	for rows.Next() {
 		var v int64
-		rows.Scan(&v)
+		_ = rows.Scan(&v)
 		appliedCount++
 	}
 	rows.Close()
@@ -387,14 +405,14 @@ func forceVersion(version int) {
 	}
 
 	if _, err := tx.Exec("DELETE FROM schema_migrations"); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		fmt.Fprintf(os.Stderr, "Error clearing migrations table: %v\n", err)
 		os.Exit(1)
 	}
 
 	if version > 0 {
 		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", version); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			fmt.Fprintf(os.Stderr, "Error setting version: %v\n", err)
 			os.Exit(1)
 		}

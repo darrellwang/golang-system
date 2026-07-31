@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/darrell/golang-system/golang-commons/database"
 	"github.com/darrell/golang-system/golang-app/internal/domain"
+	"github.com/darrell/golang-system/golang-commons/database"
 )
 
 // ItemPostgres is the PostgreSQL implementation of ItemRepository.

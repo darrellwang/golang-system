@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/darrell/golang-system/golang-commons/httpclient"
 	"github.com/darrell/golang-system/golang-app2/internal/domain"
+	"github.com/darrell/golang-system/golang-commons/httpclient"
 )
 
 // ItemClient looks up items in the item service over HTTP.
@@ -17,7 +17,7 @@ type ItemClient struct {
 
 // NewItemClient creates a new ItemClient.
 func NewItemClient(baseURL string) *ItemClient {
-	return &ItemClient{c: httpclient.New(baseURL, httpclient.WithTimeout(10 * time.Second))}
+	return &ItemClient{c: httpclient.New(baseURL, httpclient.WithTimeout(10*time.Second))}
 }
 
 // GetByID fetches an item by ID.
@@ -32,7 +32,7 @@ func (c *ItemClient) GetByID(ctx context.Context, id string) (*domain.ItemView, 
 }
 
 // List fetches a paginated item list.
-func (c *ItemClient) List(ctx context.Context, offset, limit int) ([]domain.ItemView, error) {
+func (c *ItemClient) List(ctx context.Context, _, _ int) ([]domain.ItemView, error) {
 	var page struct {
 		Items  []domain.ItemView `json:"items"`
 		Total  int               `json:"total"`

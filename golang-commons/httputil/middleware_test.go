@@ -124,7 +124,7 @@ func TestError_NonAppError(t *testing.T) {
 func TestRequestIDMiddleware_GeneratesNewID(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		id := GetRequestID(r.Context())
 		if id == "" {
 			t.Error("expected request_id in context")
@@ -143,7 +143,7 @@ func TestRequestIDMiddleware_PreservesExisting(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set("X-Request-ID", "custom-id-123")
 	var capturedID string
-	handler := RequestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RequestIDMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		capturedID = GetRequestID(r.Context())
 	}))
 	handler.ServeHTTP(w, r)
@@ -161,7 +161,7 @@ func TestAuthContextMiddleware_SetsUserID(t *testing.T) {
 	r.Header.Set("X-User-ID", "user-42")
 
 	var capturedUserID string
-	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		capturedUserID = GetUserID(r.Context())
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), r)
@@ -178,7 +178,7 @@ func TestAuthContextMiddleware_PrefersJWTClaims(t *testing.T) {
 	r.Header.Set("x-jwt-org", "real-org")
 
 	var userID, orgID string
-	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		userID = GetUserID(r.Context())
 		orgID = GetOrganizationID(r.Context())
 	}))
@@ -194,7 +194,7 @@ func TestAuthContextMiddleware_RejectsForgedHeadersWhenUntrusted(t *testing.T) {
 	r.Header.Set("X-User-ID", "forged")
 
 	var capturedUserID string
-	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: false})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: false})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		capturedUserID = GetUserID(r.Context())
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), r)
@@ -209,7 +209,7 @@ func TestAuthContextMiddleware_SetsOrgID(t *testing.T) {
 	r.Header.Set("X-Organization-ID", "org-99")
 
 	var capturedOrgID string
-	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		capturedOrgID = GetOrganizationID(r.Context())
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), r)
@@ -222,7 +222,7 @@ func TestAuthContextMiddleware_SetsOrgID(t *testing.T) {
 func TestAuthContextMiddleware_MissingHeaders(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthContextMiddleware(&AuthConfig{TrustHeaders: true})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		if GetUserID(r.Context()) != "" {
 			t.Error("expected empty user_id when header missing")
 		}
@@ -236,7 +236,7 @@ func TestAuthContextMiddleware_MissingHeaders(t *testing.T) {
 func TestRequireAuthenticated(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	RequireAuthenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	RequireAuthenticated(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("should not reach handler")
 	})).ServeHTTP(w, r)
 	if w.Code != http.StatusUnauthorized {

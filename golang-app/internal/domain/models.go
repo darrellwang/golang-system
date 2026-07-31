@@ -7,9 +7,9 @@ import "time"
 type ItemStatus string
 
 const (
-	ItemStatusActive    ItemStatus = "active"
-	ItemStatusInactive  ItemStatus = "inactive"
-	ItemStatusArchived  ItemStatus = "archived"
+	ItemStatusActive   ItemStatus = "active"
+	ItemStatusInactive ItemStatus = "inactive"
+	ItemStatusArchived ItemStatus = "archived"
 )
 
 // Item is the aggregate root.

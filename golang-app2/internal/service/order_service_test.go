@@ -70,8 +70,8 @@ func (e errNF) Error() string { return "not found: " + e.id }
 
 type mockPub struct{}
 
-func (mockPub) PublishOrderCreated(_ context.Context, _ *domain.Order) error    { return nil }
-func (mockPub) PublishOrderUpdated(_ context.Context, _ *domain.Order) error    { return nil }
+func (mockPub) PublishOrderCreated(_ context.Context, _ *domain.Order) error            { return nil }
+func (mockPub) PublishOrderUpdated(_ context.Context, _ *domain.Order) error            { return nil }
 func (mockPub) PublishOrderCanceled(_ context.Context, _ *domain.Order, _ string) error { return nil }
 
 type mockItemClient struct{}

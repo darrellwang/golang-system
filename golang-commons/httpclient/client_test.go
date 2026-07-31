@@ -32,7 +32,7 @@ func TestNew_WithHeader(t *testing.T) {
 }
 
 func TestGet_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"id": "1", "name": "test"})
 	}))
@@ -50,7 +50,7 @@ func TestGet_Success(t *testing.T) {
 }
 
 func TestGet_ServiceError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"error":"not found"}`))
 	}))
