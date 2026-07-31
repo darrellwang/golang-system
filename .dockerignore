@@ -6,7 +6,8 @@
 .codebuddy/
 
 # 构建产物（镜像内重新编译，无需带入上下文）
-**/server
+golang-app/server
+golang-app2/server
 migrate-cli
 dist/
 *.tmp
