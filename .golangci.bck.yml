@@ -1,0 +1,23 @@
+# golangci-lint 配置
+# 锁定的 golangci-lint 版本: v1.61.0
+# (workflow 中通过 golangci-lint-action 的 version 参数对应)
+run:
+  timeout: 5m
+  tests: true
+  go: "1.26"
+
+linters:
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - revive
+    - gosimple
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters: [errcheck]
