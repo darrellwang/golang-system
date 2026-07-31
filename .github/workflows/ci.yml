@@ -58,10 +58,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
       - uses: golangci/golangci-lint-action@v9
         with:
           working-directory: ${{ matrix.module }}
           version: v2.12.2
+        env:
+          GOWORK: off
 
   test:
     needs: changes
@@ -100,8 +104,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
       - working-directory: ${{ matrix.module }}
         run: go test -race -coverprofile=coverage.out ./...
+        env:
+          GOWORK: off
       - uses: actions/upload-artifact@v4
         if: matrix.module == 'golang-app' || matrix.module == 'golang-app2'
         with:
@@ -131,8 +138,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
       - working-directory: ${{ matrix.module }}
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
+        env:
+          GOWORK: off
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.module }}
