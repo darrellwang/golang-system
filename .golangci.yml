@@ -1,19 +1,34 @@
+# golangci-lint 配置 (v2 格式)
+# 锁定的 golangci-lint 版本: v2.12.2 (需用 go1.26+ 构建)
+# workflow 中通过 golangci-lint-action v9 + version 参数对应
+version: "2"
 run:
-  timeout: 5m
+  go: "1.26"
   tests: true
-
 linters:
   enable:
-    - gofmt
-    - govet
-    - errcheck
-    - staticcheck
-    - unused
-    - ineffassign
     - revive
-    - gosimple
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters: [errcheck]
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
