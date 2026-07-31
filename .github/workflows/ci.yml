@@ -23,7 +23,7 @@ jobs:
       events: ${{ steps.filter.outputs.golang-events }}
       chart: ${{ steps.filter.outputs.chart }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -54,8 +54,8 @@ jobs:
       matrix:
         module: [golang-commons, golang-events, golang-app, golang-app2]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -99,8 +99,8 @@ jobs:
         ports: [4222:4222]
         options: --health-cmd "nats-server --signal ldm=0" --health-interval 5s --health-timeout 3s --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -109,14 +109,14 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
         env:
           GOWORK: off
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.module == 'golang-app' || matrix.module == 'golang-app2'
         with:
           name: coverage-${{ matrix.module }}
           path: ${{ matrix.module }}/coverage.out
       - name: Upload coverage to Codecov
         if: matrix.module == 'golang-app' || matrix.module == 'golang-app2'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: ${{ matrix.module }}/coverage.out
           flags: ${{ matrix.module }}
@@ -133,8 +133,8 @@ jobs:
       matrix:
         module: [golang-app, golang-app2]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -143,7 +143,7 @@ jobs:
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
         env:
           GOWORK: off
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.module }}
           path: ${{ matrix.module }}/server
@@ -153,8 +153,8 @@ jobs:
     if: needs.changes.outputs.chart == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v3
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
         with:
           version: v3.15.0
       - name: helm lint / template
@@ -176,8 +176,8 @@ jobs:
       matrix:
         service: [golang-app, golang-app2]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4.5.2
         with:
           registry: ghcr.io

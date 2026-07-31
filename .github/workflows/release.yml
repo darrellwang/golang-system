@@ -23,8 +23,8 @@ jobs:
           - { goos: darwin,  goarch: amd64 }
           - { goos: darwin,  goarch: arm64 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: "${{ env.GO_VERSION }}" }
       - working-directory: ${{ matrix.service }}
         env:
@@ -34,7 +34,7 @@ jobs:
         run: |
           mkdir -p ../dist/${{ matrix.service }}
           go build -o ../dist/${{ matrix.service }}/server-${{ matrix.target.goos }}-${{ matrix.target.goarch }} ./cmd/server
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.service }}
           path: dist/${{ matrix.service }}/*
@@ -43,7 +43,7 @@ jobs:
     needs: binaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { path: dist }
       - uses: softprops/action-gh-release@v3
         with:
@@ -54,10 +54,10 @@ jobs:
     needs: binaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v3
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
         with: { version: v3.15.0 }
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4.5.2
         with:
           registry: ghcr.io
