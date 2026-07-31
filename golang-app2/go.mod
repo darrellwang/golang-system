@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/darrell/golang-system/golang-commons v0.0.0
 	github.com/darrell/golang-system/golang-events v0.0.0
-	github.com/go-chi/chi/v5 v5.0.12
+	github.com/go-chi/chi/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/nats-io/nats.go v1.34.1
