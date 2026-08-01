@@ -6,7 +6,7 @@
 # =============================================================================
 
 # ---------- 构建阶段 ----------
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.26.5-alpine AS builder
 WORKDIR /src
 
 # GOPROXY 可通过 --build-arg 覆盖（如 GOPROXY=https://goproxy.cn,direct）
@@ -39,7 +39,7 @@ RUN cd golang-app2 && \
       -o /out/migrate ./cmd/migrate
 
 # ---------- 运行阶段 ----------
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata && adduser -D -u 10001 appuser
 WORKDIR /home/appuser
 
