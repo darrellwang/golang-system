@@ -38,7 +38,7 @@ jobs:
           go build -o ../dist/${{ matrix.service }}/${{ matrix.service }}-${{ matrix.target.goos }}-${{ matrix.target.goarch }} ./cmd/server
       - uses: actions/upload-artifact@v7
         with:
-          name: binaries-${{ matrix.service }}
+          name: ${{ matrix.service }}-${{ matrix.target.goos }}-${{ matrix.target.goarch }}
           path: dist/${{ matrix.service }}/*
 
   release:
