@@ -58,7 +58,7 @@ jobs:
           kubectl exec deploy/golang-app -- sh -c \
             'DATABASE_URL="postgres://app_user:change-me@postgres-app:5432/app_db?sslmode=disable" ./migrate up'
           kubectl exec deploy/golang-app2 -- sh -c \
-            'DATABASE_URL="postgres://app_user:change-me@postgres-app2:5432/app_db?sslmode=disable" ./migrate up'
+            'DATABASE_URL="postgres://app2_user:change-me@postgres-app2:5432/app2_db?sslmode=disable" ./migrate up'
 
       - name: Smoke test
         run: |
