@@ -26,7 +26,16 @@ jobs:
           docker build --network=host --build-arg GOPROXY=https://goproxy.cn,direct \
             -f golang-app2/Dockerfile -t golang-app2:${{ github.sha }} .
 
-      - name: Load images into kind
+      - name: Pre-load infra images into kind
+        run: |
+          docker pull --platform linux/amd64 postgres:16-alpine
+          docker pull --platform linux/amd64 nats:2.10-alpine
+          docker save postgres:16-alpine | docker exec -i golang-system-dev-control-plane \
+            ctr --namespace=k8s.io images import --platform linux/amd64 -
+          docker save nats:2.10-alpine | docker exec -i golang-system-dev-control-plane \
+            ctr --namespace=k8s.io images import --platform linux/amd64 -
+
+      - name: Load app images into kind
         run: |
           kind load docker-image golang-app:${{ github.sha }} --name golang-system-dev
           kind load docker-image golang-app2:${{ github.sha }} --name golang-system-dev
@@ -40,6 +49,8 @@ jobs:
             --set golangApp2.image.tag=${{ github.sha }} \
             --set golangApp.image.pullPolicy=Never \
             --set golangApp2.image.pullPolicy=Never \
+            --set golangApp.autoscaling.enabled=false \
+            --set golangApp2.autoscaling.enabled=false \
             --wait --timeout 10m
 
       - name: Run database migrations
