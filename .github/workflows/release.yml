@@ -35,7 +35,7 @@ jobs:
           GOWORK: off
         run: |
           mkdir -p ../dist/${{ matrix.service }}
-          go build -o ../dist/${{ matrix.service }}/server-${{ matrix.target.goos }}-${{ matrix.target.goarch }} ./cmd/server
+          go build -o ../dist/${{ matrix.service }}/${{ matrix.service }}-${{ matrix.target.goos }}-${{ matrix.target.goarch }} ./cmd/server
       - uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.service }}
