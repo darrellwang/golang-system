@@ -8,20 +8,28 @@ on:
 jobs:
   dev:
     environment: development
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, k8s-dev]
+    env:
+      GO_VERSION: "1.26.1"
     steps:
       - uses: actions/checkout@v7
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
         with:
-          version: v3.15.0
+          version: v3.21.3
 
-      - name: Configure kubectl
-        uses: azure/k8s-set-context@v5
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBE_CONFIG_DEV }}
+      - name: Build Docker images
+        run: |
+          docker build --network=host --build-arg GOPROXY=https://goproxy.cn,direct \
+            -f golang-app/Dockerfile -t golang-app:${{ github.sha }} .
+          docker build --network=host --build-arg GOPROXY=https://goproxy.cn,direct \
+            -f golang-app2/Dockerfile -t golang-app2:${{ github.sha }} .
+
+      - name: Load images into kind
+        run: |
+          kind load docker-image golang-app:${{ github.sha }} --name golang-system-dev
+          kind load docker-image golang-app2:${{ github.sha }} --name golang-system-dev
 
       - name: helm upgrade --install (DEV)
         run: |
@@ -30,13 +38,37 @@ jobs:
             --set global.environment=dev \
             --set golangApp.image.tag=${{ github.sha }} \
             --set golangApp2.image.tag=${{ github.sha }} \
+            --set golangApp.image.pullPolicy=Never \
+            --set golangApp2.image.pullPolicy=Never \
             --wait --timeout 10m
+
+      - name: Run database migrations
+        run: |
+          kubectl exec deploy/golang-app -- sh -c \
+            'DATABASE_URL="postgres://app_user:change-me@postgres-app:5432/app_db?sslmode=disable" ./migrate up'
+          kubectl exec deploy/golang-app2 -- sh -c \
+            'DATABASE_URL="postgres://app_user:change-me@postgres-app2:5432/app_db?sslmode=disable" ./migrate up'
 
       - name: Smoke test
         run: |
           kubectl rollout status deployment/golang-app --timeout=5m
           kubectl rollout status deployment/golang-app2 --timeout=5m
           kubectl get svc golang-app golang-app2
+
+          # Health check
+          kubectl port-forward svc/golang-app 8080:8080 &
+          PF_PID=$!
+          sleep 3
+          curl -sf http://localhost:8080/admin/health/liveness | grep -q '"status":"ok"'
+          curl -sf http://localhost:8080/admin/health/readiness | grep -q '"status":"ok"'
+          kill $PF_PID
+
+          kubectl port-forward svc/golang-app2 8081:8081 &
+          PF_PID=$!
+          sleep 3
+          curl -sf http://localhost:8081/admin/health/liveness | grep -q '"status":"ok"'
+          curl -sf http://localhost:8081/admin/health/readiness | grep -q '"status":"ok"'
+          kill $PF_PID
 
   staging:
     needs: dev
