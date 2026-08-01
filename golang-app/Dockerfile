@@ -9,6 +9,10 @@
 FROM golang:1.26.1-alpine AS builder
 WORKDIR /src
 
+# GOPROXY 可通过 --build-arg 覆盖（如 GOPROXY=https://goproxy.cn,direct）
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+
 # 先拷贝工作区与模块描述文件，利用 Docker 层缓存加速依赖下载
 COPY go.work go.work.sum ./
 COPY golang-commons/go.mod golang-commons/go.sum ./golang-commons/
