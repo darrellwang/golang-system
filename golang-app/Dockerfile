@@ -6,7 +6,7 @@
 # =============================================================================
 
 # ---------- 构建阶段 ----------
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 WORKDIR /src
 
 # GOPROXY 可通过 --build-arg 覆盖（如 GOPROXY=https://goproxy.cn,direct）
